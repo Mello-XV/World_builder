@@ -1,0 +1,61 @@
+/* Styles globaux de l'application */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #0f0e0d;
+  color: #e8dcc8;
+  font-family: 'Cormorant Garamond', 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+  min-height: 100vh;
+}
+
+/* Sélection de texte */
+::selection {
+  background: #c9a84c33;
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2520;
+  border-radius: 3px;
+}
+
+/* Focus sur les champs de saisie */
+textarea:focus,
+input:focus,
+select:focus {
+  border-color: #c9a84c55 !important;
+  outline: none;
+}
+
+/* Placeholder pour les champs contenteditable */
+[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #5a5245;
+  pointer-events: none;
+}
+
+/* Focus sur les champs contenteditable */
+[contenteditable]:focus {
+  border-color: #c9a84c55 !important;
+  outline: none;
+}
+
+/* Conteneur principal */
+#root {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 20px 40px;
+}

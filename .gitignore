@@ -1,0 +1,37 @@
+# Dépendances
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variables d'environnement (contient les clés Firebase)
+.env
+.env.local
+.env.*.local
+
+# Cache Vite
+.vite/
+
+# Fichiers temporaires
+*.local
+
+# Éditeurs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
