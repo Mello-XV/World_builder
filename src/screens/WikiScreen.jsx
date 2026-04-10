@@ -22,7 +22,7 @@ import { EntryList } from '../components/entry/EntryList';
 import { EntryView } from '../components/entry/EntryView';
 import { EntryEditor } from '../components/entry/EntryEditor';
 import { CATEGORIES } from '../constants/categories';
-import { T, sBtn, sBtnA } from '../styles/theme';
+import { T, sBtn } from '../styles/theme';
 
 export function WikiScreen({ project: initialProject, data: initialData, onGoProjects, onProjectUpdate }) {
   const [project, setProject] = useState(initialProject);
@@ -43,8 +43,12 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
   // ── Sauvegarde automatique (500ms après chaque modif) ────────────────
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      saveProjectData(project.id, data);
+    saveTimer.current = setTimeout(async () => {
+      const ok = await saveProjectData(project.id, data);
+      if (!ok) {
+        setToast('Erreur de sauvegarde — photo trop volumineuse ?');
+        setTimeout(() => setToast(null), 4000);
+      }
     }, 500);
     return () => clearTimeout(saveTimer.current);
   }, [data, project.id]);

@@ -16,7 +16,8 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
-import { auth, db } from './firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from './firebase';
 
 // ── Gestion des statuts utilisateurs (approbation admin) ──────────────────
 
@@ -115,13 +116,25 @@ export async function loadProjectData(projectId) {
   }
 }
 
-/** Sauvegarde les données (fiches) d'un projet. */
+/** Upload une photo vers Firebase Storage et retourne son URL de téléchargement. */
+export async function uploadEntryPhoto(file) {
+  const uid = getUserId();
+  if (!uid) throw new Error('Non authentifié');
+  const path = `users/${uid}/photos/${Date.now()}_${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  return await getDownloadURL(storageRef);
+}
+
+/** Sauvegarde les données (fiches) d'un projet. Retourne true si succès, false sinon. */
 export async function saveProjectData(projectId, data) {
   const uid = getUserId();
-  if (!uid) return;
+  if (!uid) return false;
   try {
     await setDoc(doc(db, 'users', uid, 'projectData', projectId), data);
+    return true;
   } catch (e) {
     console.error('saveProjectData:', e);
+    return false;
   }
 }

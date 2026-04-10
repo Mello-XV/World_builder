@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { CATEGORIES } from '../../constants/categories';
 import { MentionField } from '../ui/MentionField';
 import { renderFieldEdit } from '../fields/FieldRenderer';
+import { uploadEntryPhoto } from '../../lib/firestore';
 import { T, sCard, sInp, sLbl, sBtnA, sBtn, sBs } from '../../styles/theme';
 
 export function EntryEditor({ entry, category, entries, onSave, onCancel, flash }) {
@@ -23,6 +24,7 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
   const [fields, setFields] = useState({ ...entry.fields });
   const [customSections, setCustomSections] = useState(entry.customSections || []);
   const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   const isRecit = category === 'recit';
 
@@ -42,12 +44,19 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
     });
   };
 
-  const handlePhotoChange = ev => {
+  const handlePhotoChange = async ev => {
     const file = ev.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = re => setPhoto(re.target.result);
-    reader.readAsDataURL(file);
+    setPhotoUploading(true);
+    try {
+      const url = await uploadEntryPhoto(file);
+      setPhoto(url);
+    } catch (e) {
+      flash('Erreur upload photo');
+      console.error(e);
+    } finally {
+      setPhotoUploading(false);
+    }
   };
 
   const addCustomSection = () => {
@@ -85,12 +94,13 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
                   alt="preview"
                 />
               )}
-              <label style={{ ...sBs, cursor: 'pointer' }}>
-                📷 {photo ? 'Changer' : 'Ajouter'}
+              <label style={{ ...sBs, cursor: photoUploading ? 'wait' : 'pointer', opacity: photoUploading ? 0.6 : 1 }}>
+                {photoUploading ? '⏳ Upload…' : `📷 ${photo ? 'Changer' : 'Ajouter'}`}
                 <input
                   type="file"
                   accept="image/*"
                   onChange={handlePhotoChange}
+                  disabled={photoUploading}
                   style={{ display: 'none' }}
                 />
               </label>

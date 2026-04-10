@@ -9,6 +9,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyDQC8QCP3J9Q4fptgkWsdZWYpw-UtY_eBk',
@@ -23,5 +24,6 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 export const ADMIN_EMAIL = 'gregoiremorval@gmail.com';
