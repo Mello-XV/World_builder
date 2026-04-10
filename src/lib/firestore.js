@@ -18,6 +18,48 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
+// ── Gestion des statuts utilisateurs (approbation admin) ──────────────────
+
+/** Crée un document de statut 'pending' pour un nouvel utilisateur. */
+export async function createPendingUser(uid, email) {
+  try {
+    await setDoc(doc(db, 'userStatus', uid), { email, status: 'pending', createdAt: Date.now() });
+  } catch (e) {
+    console.error('createPendingUser:', e);
+  }
+}
+
+/** Retourne le statut d'un utilisateur, ou null si introuvable. */
+export async function getUserStatus(uid) {
+  try {
+    const d = await getDoc(doc(db, 'userStatus', uid));
+    return d.exists() ? d.data() : null;
+  } catch (e) {
+    console.error('getUserStatus:', e);
+    return null;
+  }
+}
+
+/** Retourne tous les statuts utilisateurs (admin seulement). */
+export async function getAllUserStatuses() {
+  try {
+    const snapshot = await getDocs(collection(db, 'userStatus'));
+    return snapshot.docs.map(d => ({ uid: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
+  } catch (e) {
+    console.error('getAllUserStatuses:', e);
+    return [];
+  }
+}
+
+/** Met à jour le statut d'un utilisateur : 'approved' ou 'rejected'. */
+export async function updateUserStatus(uid, status) {
+  try {
+    await setDoc(doc(db, 'userStatus', uid), { status, reviewedAt: Date.now() }, { merge: true });
+  } catch (e) {
+    console.error('updateUserStatus:', e);
+  }
+}
+
 /** Retourne l'UID de l'utilisateur connecté, ou null si déconnecté. */
 function getUserId() {
   return auth.currentUser?.uid ?? null;

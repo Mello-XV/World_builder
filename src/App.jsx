@@ -13,12 +13,16 @@ import { useState, useEffect } from 'react';
 import { AuthGate } from './components/auth/AuthGate';
 import { ProjectsScreen } from './screens/ProjectsScreen';
 import { WikiScreen } from './screens/WikiScreen';
+import { AdminPanel } from './components/admin/AdminPanel';
 import { loadProjects, loadProjectData } from './lib/firestore';
-import { T } from './styles/theme';
+import { auth, ADMIN_EMAIL } from './lib/firebase';
+import { T, sBs } from './styles/theme';
 
 function AppContent() {
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const isAdmin = auth.currentUser?.email === ADMIN_EMAIL;
 
   // Projet et données actuellement ouverts
   const [currentProject, setCurrentProject] = useState(null);
@@ -90,11 +94,27 @@ function AppContent() {
 
   // Liste des projets
   return (
-    <ProjectsScreen
-      projects={projects}
-      onProjectOpen={handleProjectOpen}
-      onProjectsChange={setProjects}
-    />
+    <>
+      <ProjectsScreen
+        projects={projects}
+        onProjectOpen={handleProjectOpen}
+        onProjectsChange={setProjects}
+      />
+      {isAdmin && (
+        <button
+          onClick={() => setShowAdmin(true)}
+          style={{
+            ...sBs,
+            position: 'fixed', bottom: 20, right: 20,
+            background: T.bgC, color: T.ac, borderColor: T.ac + '44',
+            zIndex: 900,
+          }}
+        >
+          ⚙ Admin
+        </button>
+      )}
+      {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
+    </>
   );
 }
 
