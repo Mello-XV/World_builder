@@ -117,8 +117,11 @@ export function PdfExportScreen({ project, data, onBack }) {
 
         // Build PDF — one cropped slice per page
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+        pdf.setFillColor(26, 25, 21); // #1a1915 — fond de l'app
         for (let i = 0; i < cuts.length - 1; i++) {
           if (i > 0) pdf.addPage();
+          // Remplir toute la page avec la couleur de fond (évite l'espace blanc en bas)
+          pdf.rect(0, 0, A4W, A4H, 'F');
           const y0 = cuts[i];
           const y1 = cuts[i + 1];
           const tmp = document.createElement('canvas');
