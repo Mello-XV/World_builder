@@ -225,14 +225,35 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     [mention.charCount, onChange],
   );
 
+  // ── Indentation de bloc (Tab / Shift+Tab) ────────────────────────────
+
+  const indentCurrentBlock = useCallback((increase) => {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !ref.current) return;
+
+    // Remonter jusqu'au fils direct du contenteditable
+    let node = sel.getRangeAt(0).commonAncestorContainer;
+    if (node.nodeType === 3) node = node.parentNode; // nœud texte → élément parent
+    while (node.parentNode && node.parentNode !== ref.current) {
+      node = node.parentNode;
+    }
+    if (!node || node === ref.current) return;
+
+    const STEP = 32; // px par niveau d'indentation
+    const current = parseInt(node.style.paddingLeft, 10) || 0;
+    const next = increase ? current + STEP : Math.max(0, current - STEP);
+    node.style.paddingLeft = next > 0 ? `${next}px` : '';
+    onChange(ref.current.innerHTML);
+  }, [onChange]);
+
   // ── Gestion du clavier ────────────────────────────────────────────────
 
   const handleKeyDown = useCallback(
     ev => {
-      // Tab → 4 espaces (mode multiline)
+      // Tab → indenter le bloc entier (Shift+Tab → désindenter)
       if (ev.key === 'Tab' && multiline) {
         ev.preventDefault();
-        document.execCommand('insertText', false, '    ');
+        indentCurrentBlock(!ev.shiftKey);
         return;
       }
 
@@ -258,7 +279,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         setMention({ active: false, query: '', charCount: 0 });
       }
     },
-    [mention, filtered, selectedIndex, insertMention, multiline, applyFormat],
+    [mention, filtered, selectedIndex, insertMention, multiline, applyFormat, indentCurrentBlock],
   );
 
   // ── Rendu mode simple (input) ─────────────────────────────────────────
