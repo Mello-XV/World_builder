@@ -50,7 +50,6 @@ export const FAMILY_TYPES_BASE = [
   'Belle-mère',
   'Beau-frère',
   'Belle-sœur',
-  'Autre',
 ];
 
 export const STATUT_OPTIONS = ['Vivant', 'Mort', 'Disparu', 'Inconnu', 'En exil', 'Emprisonné'];
