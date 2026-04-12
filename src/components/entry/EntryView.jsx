@@ -18,9 +18,47 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
   if (!entry) return <div>Introuvable.</div>;
 
   const cat = CATEGORIES[entry.category];
-  const generalFields = cat.fields.filter(f => f.group === 'general');
-  const mainFields = cat.fields.filter(f => f.group !== 'general');
   const isRecit = entry.category === 'recit';
+
+  // Appliquer l'ordre personnalisé (generalOrder / contentOrder) si présent,
+  // sinon conserver l'ordre par défaut de la catégorie.
+  const generalFields = (() => {
+    const base = cat.fields.filter(f => f.group === 'general');
+    const order = entry.generalOrder;
+    if (!order) return base;
+    const sorted = order.map(k => base.find(f => f.key === k)).filter(Boolean);
+    const missing = base.filter(f => !order.includes(f.key));
+    return [...sorted, ...missing];
+  })();
+
+  // contentItems : champs non-généraux + sections perso, dans l'ordre sauvegardé
+  const contentItems = (() => {
+    const baseFields = cat.fields.filter(f => f.group !== 'general');
+    const sections = entry.customSections || [];
+    const order = entry.contentOrder;
+    if (!order) {
+      return [
+        ...baseFields.map(f => ({ type: 'field', field: f })),
+        ...sections.map(s => ({ type: 'section', section: s })),
+      ];
+    }
+    const sorted = order
+      .map(id => {
+        const field = baseFields.find(f => f.key === id);
+        if (field) return { type: 'field', field };
+        const section = sections.find(s => s.id === id);
+        if (section) return { type: 'section', section };
+        return null;
+      })
+      .filter(Boolean);
+    const missingFields = baseFields
+      .filter(f => !order.includes(f.key))
+      .map(f => ({ type: 'field', field: f }));
+    const missingSections = sections
+      .filter(s => !order.includes(s.id))
+      .map(s => ({ type: 'section', section: s }));
+    return [...sorted, ...missingFields, ...missingSections];
+  })();
 
   // Backlinks : fiches qui mentionnent cette fiche
   const backlinks = Object.values(entries).filter(x => {
@@ -39,54 +77,31 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
         <div style={{ marginBottom: 16 }}>
           <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700, lineHeight: 1.3 }}>{entry.name}</h2>
         </div>
-        {mainFields.map(f => {
-          const v = entry.fields?.[f.key];
-          if (!v) return null;
+        {contentItems.map(item => {
+          if (item.type === 'field') {
+            const v = entry.fields?.[item.field.key];
+            if (!v) return null;
+            return (
+              <div key={item.field.key} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
+                <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
+                  <RichText text={v} entries={entries} onNav={onNav} />
+                </div>
+              </div>
+            );
+          }
+          const s = item.section;
+          if (!s.content) return null;
           return (
-            <div
-              key={f.key}
-              style={{
-                marginBottom: 14,
-                padding: '14px 18px',
-                background: T.bgC,
-                border: `1px solid ${T.bd}`,
-                borderRadius: 6,
-              }}
-            >
+            <div key={s.id} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
+              <div style={{ fontSize: 11, color: cat.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>
+                {s.title}
+              </div>
               <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
-                <RichText text={v} entries={entries} onNav={onNav} />
+                <RichText text={s.content} entries={entries} onNav={onNav} />
               </div>
             </div>
           );
         })}
-        {(entry.customSections || []).map(s => (
-          <div
-            key={s.id}
-            style={{
-              marginBottom: 14,
-              padding: '14px 18px',
-              background: T.bgC,
-              border: `1px solid ${T.bd}`,
-              borderRadius: 6,
-            }}
-          >
-            <div
-              style={{
-                fontSize: 11,
-                color: cat.color,
-                letterSpacing: 1.5,
-                textTransform: 'uppercase',
-                marginBottom: 6,
-                fontWeight: 700,
-              }}
-            >
-              {s.title}
-            </div>
-            <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
-              <RichText text={s.content} entries={entries} onNav={onNav} />
-            </div>
-          </div>
-        ))}
       </>
     );
   }
@@ -142,71 +157,39 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
             </div>
           )}
 
-          {/* Champs principaux */}
-          {mainFields.map(f => {
-            const v = entry.fields?.[f.key];
-            if (!v || (Array.isArray(v) && !v.length)) return null;
-            const label =
-              f.key === 'personnagesLies' ? `Personnages secondaires liés à ${entry.name}` : f.label;
+          {/* Sections de contenu (champs + sections perso) dans l'ordre sauvegardé */}
+          {contentItems.map(item => {
+            if (item.type === 'field') {
+              const f = item.field;
+              const v = entry.fields?.[f.key];
+              if (!v || (Array.isArray(v) && !v.length)) return null;
+              const label = f.key === 'personnagesLies'
+                ? `Personnages secondaires liés à ${entry.name}`
+                : f.label;
+              return (
+                <div key={f.key} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
+                  <div style={{ fontSize: 11, color: cat.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>
+                    {label}
+                  </div>
+                  <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
+                    {renderFieldView(f, entry.fields, entries, onNav)}
+                  </div>
+                </div>
+              );
+            }
+            const s = item.section;
+            if (!s.content) return null;
             return (
-              <div
-                key={f.key}
-                style={{
-                  marginBottom: 14,
-                  padding: '14px 18px',
-                  background: T.bgC,
-                  border: `1px solid ${T.bd}`,
-                  borderRadius: 6,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 11,
-                    color: cat.color,
-                    letterSpacing: 1.5,
-                    textTransform: 'uppercase',
-                    marginBottom: 6,
-                    fontWeight: 700,
-                  }}
-                >
-                  {label}
+              <div key={s.id} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
+                <div style={{ fontSize: 11, color: cat.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>
+                  {s.title}
                 </div>
                 <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
-                  {renderFieldView(f, entry.fields, entries, onNav)}
+                  <RichText text={s.content} entries={entries} onNav={onNav} />
                 </div>
               </div>
             );
           })}
-
-          {/* Sections personnalisées */}
-          {(entry.customSections || []).map(s => (
-            <div
-              key={s.id}
-              style={{
-                marginBottom: 14,
-                padding: '14px 18px',
-                background: T.bgC,
-                border: `1px solid ${T.bd}`,
-                borderRadius: 6,
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 11,
-                  color: cat.color,
-                  letterSpacing: 1.5,
-                  textTransform: 'uppercase',
-                  marginBottom: 6,
-                  fontWeight: 700,
-                }}
-              >
-                {s.title}
-              </div>
-              <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
-                <RichText text={s.content} entries={entries} onNav={onNav} />
-              </div>
-            </div>
-          ))}
         </div>
 
         {/* ── Colonne latérale (droite) ── */}

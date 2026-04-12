@@ -12,7 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { CATEGORIES } from '../../constants/categories';
-import { T, sInp } from '../../styles/theme';
+import { T, sInp, sBs } from '../../styles/theme';
 
 // Style des boutons de la toolbar de formatage
 const toolbarBtn = {
@@ -75,6 +75,7 @@ function tsvToHtmlTable(tsv) {
 export function MentionField({ value, onChange, entries, placeholder, multiline, style: xs }) {
   const [mention, setMention] = useState({ active: false, query: '', charCount: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [tablePicker, setTablePicker] = useState(null); // null | { rows, cols }
   const ref = useRef(null);
 
   const allEntries = useMemo(() => Object.values(entries), [entries]);
@@ -119,6 +120,22 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     ref.current?.focus();
     document.execCommand(cmd, false, null);
   }, []);
+
+  // ── Insertion d'un tableau vide ───────────────────────────────────────
+
+  const insertEmptyTable = useCallback((rows, cols) => {
+    ref.current?.focus();
+    const th = Array.from({ length: cols }, () =>
+      `<th style="padding:6px 10px;font-weight:700;border:1px solid #3a332a">&nbsp;</th>`
+    ).join('');
+    const tdRow = `<tr>${Array.from({ length: cols }, () =>
+      `<td style="padding:6px 10px;border:1px solid #3a332a">&nbsp;</td>`
+    ).join('')}</tr>`;
+    const trs = Array.from({ length: Math.max(rows - 1, 0) }, () => tdRow).join('');
+    const html = `<table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
+    document.execCommand('insertHTML', false, html);
+    onChange(ref.current?.innerHTML || '');
+  }, [onChange]);
 
   // ── Collage de tableau TSV ─────────────────────────────────────────────
 
@@ -299,7 +316,56 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         >
           U
         </button>
+        <button
+          type="button"
+          onMouseDown={e => {
+            e.preventDefault();
+            setTablePicker(p => p ? null : { rows: 3, cols: 2 });
+          }}
+          style={{ ...toolbarBtn, fontSize: 14 }}
+          title="Insérer un tableau"
+        >
+          ⊞
+        </button>
       </div>
+
+      {/* Sélecteur de taille de tableau */}
+      {tablePicker && (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+          <input
+            type="number" min={1} max={20}
+            value={tablePicker.rows}
+            onChange={e => setTablePicker(p => ({ ...p, rows: Math.max(1, +e.target.value) }))}
+            style={{ ...sInp, width: 52, padding: '3px 6px', fontSize: 12 }}
+          />
+          <span style={{ color: T.mu, fontSize: 12 }}>lignes ×</span>
+          <input
+            type="number" min={1} max={10}
+            value={tablePicker.cols}
+            onChange={e => setTablePicker(p => ({ ...p, cols: Math.max(1, +e.target.value) }))}
+            style={{ ...sInp, width: 52, padding: '3px 6px', fontSize: 12 }}
+          />
+          <span style={{ color: T.mu, fontSize: 12 }}>col.</span>
+          <button
+            type="button"
+            onMouseDown={e => {
+              e.preventDefault();
+              insertEmptyTable(tablePicker.rows, tablePicker.cols);
+              setTablePicker(null);
+            }}
+            style={{ ...sBs, color: T.ac, borderColor: T.ac + '44', padding: '3px 10px' }}
+          >
+            Créer
+          </button>
+          <button
+            type="button"
+            onMouseDown={e => { e.preventDefault(); setTablePicker(null); }}
+            style={{ ...sBs, padding: '3px 8px' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       <div
         ref={ref}
