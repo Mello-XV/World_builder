@@ -81,8 +81,17 @@ function cleanPastedHtml(html) {
   // Supprimer les éléments non-contenu
   doc.querySelectorAll('style, meta, link, script').forEach(el => el.remove());
 
-  const allEls = doc.body.querySelectorAll('*');
-  allEls.forEach(el => {
+  // Normaliser les \n dans les nœuds texte → espace.
+  // Word encode ses retours à la ligne visuels (largeur de page) comme des \n
+  // bruts dans le HTML. Le contenteditable (whiteSpace:pre-wrap) les affiche
+  // comme de vrais sauts de ligne, d'où les coupures au milieu des phrases.
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  let tnode;
+  while ((tnode = walker.nextNode())) {
+    tnode.textContent = tnode.textContent.replace(/\n/g, ' ').replace(/ {2,}/g, ' ');
+  }
+
+  doc.body.querySelectorAll('*').forEach(el => {
     const tag = el.tagName.toLowerCase();
 
     // Mémoriser le formatage avant de tout effacer
@@ -106,6 +115,14 @@ function cleanPastedHtml(html) {
     if (tag === 'p' || tag === 'div') {
       el.style.margin = '4px 0';
       el.style.lineHeight = '1.7';
+    }
+  });
+
+  // Supprimer les paragraphes vides (artefacts Word : <p>&nbsp;</p>, <p><o:p></o:p></p>…)
+  // qui créent des lignes blanches superflues avant et après le contenu.
+  doc.body.querySelectorAll('p, div').forEach(el => {
+    if (!el.textContent.replace(/\u00a0/g, '').trim() && !el.querySelector('img, table')) {
+      el.remove();
     }
   });
 
