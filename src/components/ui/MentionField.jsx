@@ -71,6 +71,47 @@ function tsvToHtmlTable(tsv) {
   return `<table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
 }
 
+// ── Nettoyage du HTML collé (Word, navigateur) ────────────────────────────
+// Supprime les styles étrangers (fond blanc, polices, marges Word)
+// en ne conservant que le gras/italique/souligné et les balises structurelles.
+
+function cleanPastedHtml(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  // Supprimer les éléments non-contenu
+  doc.querySelectorAll('style, meta, link, script').forEach(el => el.remove());
+
+  const allEls = doc.body.querySelectorAll('*');
+  allEls.forEach(el => {
+    const tag = el.tagName.toLowerCase();
+
+    // Mémoriser le formatage avant de tout effacer
+    const isBold = el.style.fontWeight === 'bold' || el.style.fontWeight === '700';
+    const isItalic = el.style.fontStyle === 'italic';
+    const isUnderline = el.style.textDecoration?.includes('underline');
+
+    // Supprimer tous les attributs de style Word
+    el.removeAttribute('style');
+    el.removeAttribute('class');
+    el.removeAttribute('lang');
+    el.removeAttribute('align');
+    el.removeAttribute('valign');
+
+    // Réappliquer uniquement le formatage voulu
+    if (isBold) el.style.fontWeight = 'bold';
+    if (isItalic) el.style.fontStyle = 'italic';
+    if (isUnderline) el.style.textDecoration = 'underline';
+
+    // Harmoniser les marges des paragraphes entre édition et vue
+    if (tag === 'p' || tag === 'div') {
+      el.style.margin = '4px 0';
+      el.style.lineHeight = '1.7';
+    }
+  });
+
+  return doc.body.innerHTML;
+}
+
 export function MentionField({ value, onChange, entries, placeholder, multiline, style: xs }) {
   const [mention, setMention] = useState({ active: false, query: '', charCount: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -124,14 +165,44 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
   const handlePaste = useCallback(
     ev => {
       if (!multiline) return;
-      const text = ev.clipboardData.getData('text/plain');
-      if (!text.includes('\t')) return;
-
       ev.preventDefault();
-      const html = tsvToHtmlTable(text);
-      document.execCommand('insertHTML', false, html);
-      const html2 = ref.current?.innerHTML || '';
-      onChange(html2);
+
+      const plain = ev.clipboardData.getData('text/plain');
+      const htmlClip = ev.clipboardData.getData('text/html');
+
+      // Détecter un vrai tableau TSV : TOUTES les lignes non-vides ont des tabs.
+      // Cela évite de transformer des listes à puces (•\tTexte) en tableau,
+      // car la première ligne de titre n'a pas de tab.
+      const plainLines = plain.trim().split('\n').filter(l => l.trim());
+      const isTsv =
+        plain.includes('\t') &&
+        plainLines.length >= 1 &&
+        plainLines.every(l => l.includes('\t'));
+
+      // Détecter un tableau HTML (Excel, Sheets, tableau Word)
+      const htmlHasTable = !!htmlClip && /<table/i.test(htmlClip);
+
+      if (htmlHasTable || isTsv) {
+        const tableHtml = tsvToHtmlTable(plain);
+        document.execCommand('insertHTML', false, tableHtml);
+        onChange(ref.current?.innerHTML || '');
+        return;
+      }
+
+      // Texte ordinaire : nettoyer le HTML Word/navigateur (fond blanc, polices…)
+      // ou utiliser le texte brut si pas de HTML dans le presse-papiers.
+      if (htmlClip) {
+        const cleaned = cleanPastedHtml(htmlClip);
+        document.execCommand('insertHTML', false, cleaned);
+      } else {
+        const escaped = plain
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/\n/g, '<br>');
+        document.execCommand('insertHTML', false, escaped);
+      }
+      onChange(ref.current?.innerHTML || '');
     },
     [multiline, onChange],
   );
