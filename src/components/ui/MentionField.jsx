@@ -231,13 +231,28 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount || !ref.current) return;
 
-    // Remonter jusqu'au fils direct du contenteditable
-    let node = sel.getRangeAt(0).commonAncestorContainer;
-    if (node.nodeType === 3) node = node.parentNode; // nœud texte → élément parent
-    while (node.parentNode && node.parentNode !== ref.current) {
-      node = node.parentNode;
+    // Remonter jusqu'au fils direct du contenteditable,
+    // sans jamais dépasser ref.current lui-même.
+    const findDirectChild = () => {
+      const s = window.getSelection();
+      if (!s || !s.rangeCount) return null;
+      let n = s.getRangeAt(0).commonAncestorContainer;
+      if (n.nodeType === 3) n = n.parentNode;
+      while (n && n !== ref.current && n.parentNode && n.parentNode !== ref.current) {
+        n = n.parentNode;
+      }
+      return (n && n !== ref.current) ? n : null;
+    };
+
+    let node = findDirectChild();
+
+    // Si le texte est directement dans le contenteditable (pas dans un bloc),
+    // on l'enveloppe dans un <div> avant d'appliquer l'indentation.
+    if (!node) {
+      document.execCommand('formatBlock', false, 'div');
+      node = findDirectChild();
+      if (!node) return;
     }
-    if (!node || node === ref.current) return;
 
     const STEP = 32; // px par niveau d'indentation
     const current = parseInt(node.style.paddingLeft, 10) || 0;
