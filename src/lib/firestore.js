@@ -16,6 +16,7 @@ import {
   orderBy,
   query,
 } from 'firebase/firestore';
+
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from './firebase';
 
@@ -124,6 +125,49 @@ export async function uploadEntryPhoto(file) {
   const storageRef = ref(storage, path);
   await uploadBytes(storageRef, file);
   return await getDownloadURL(storageRef);
+}
+
+// ── Profils utilisateurs ──────────────────────────────────────────────────
+
+/** Charge le profil d'un utilisateur (null si inexistant). */
+export async function getUserProfile(uid) {
+  try {
+    const d = await getDoc(doc(db, 'userProfiles', uid));
+    return d.exists() ? d.data() : null;
+  } catch (e) {
+    console.error('getUserProfile:', e);
+    return null;
+  }
+}
+
+/** Met à jour (merge) le profil d'un utilisateur. */
+export async function setUserProfile(uid, data) {
+  try {
+    await setDoc(doc(db, 'userProfiles', uid), data, { merge: true });
+  } catch (e) {
+    console.error('setUserProfile:', e);
+  }
+}
+
+/**
+ * Crée le profil d'un nouvel utilisateur avec un pseudo auto-généré "user-XX".
+ * Le numéro est basé sur le nombre de profils existants au moment de la création.
+ */
+export async function createUserProfile(uid) {
+  try {
+    // Vérifie d'abord qu'un profil n'existe pas déjà
+    const existing = await getDoc(doc(db, 'userProfiles', uid));
+    if (existing.exists()) return existing.data().displayName;
+
+    const snapshot = await getDocs(collection(db, 'userProfiles'));
+    const idx = snapshot.size; // 0 → user-00, 1 → user-01…
+    const displayName = `user-${idx.toString().padStart(2, '0')}`;
+    await setDoc(doc(db, 'userProfiles', uid), { displayName, createdAt: Date.now() });
+    return displayName;
+  } catch (e) {
+    console.error('createUserProfile:', e);
+    return 'user-??';
+  }
 }
 
 /** Sauvegarde les données (fiches) d'un projet. Retourne true si succès, false sinon. */

@@ -2,12 +2,11 @@
  * WikiScreen — écran principal du wiki (quand un projet est ouvert).
  *
  * Gère la navigation entre les vues :
- * - dashboard : grille des catégories + récents
- * - list      : liste filtrée d'une catégorie
- * - entry     : affichage d'une fiche (lecture ou édition)
- * - new       : formulaire de création de fiche
- *
- * Gère aussi : recherche globale, export/import JSON, sauvegarde auto.
+ * - dashboard   : grille des catégories + récents
+ * - list        : liste filtrée d'une catégorie
+ * - entry       : affichage d'une fiche (lecture ou édition)
+ * - new         : formulaire de création de fiche
+ * - pdf-export  : sélection + export des fiches en PDF
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -18,19 +17,20 @@ import { Toast } from '../components/layout/Toast';
 import { DeleteEntryModal } from '../components/modals/DeleteEntryModal';
 import { EditProjectNameModal } from '../components/modals/EditProjectNameModal';
 import { DashboardScreen } from './DashboardScreen';
+import { PdfExportScreen } from './PdfExportScreen';
 import { EntryList } from '../components/entry/EntryList';
 import { EntryView } from '../components/entry/EntryView';
 import { EntryEditor } from '../components/entry/EntryEditor';
 import { CATEGORIES } from '../constants/categories';
 import { T, sBtn } from '../styles/theme';
 
-export function WikiScreen({ project: initialProject, data: initialData, onGoProjects, onProjectUpdate }) {
+export function WikiScreen({ project: initialProject, data: initialData, onGoProjects, onProjectUpdate, onProfile, userProfile }) {
   const [project, setProject] = useState(initialProject);
   const [data, setData] = useState(initialData);
-  const [view, setView] = useState('dashboard');   // 'dashboard' | 'list' | 'entry' | 'new'
-  const [curCat, setCurCat] = useState(null);       // catégorie courante (pour list/new)
-  const [curId, setCurId] = useState(null);          // id de la fiche courante (pour entry)
-  const [mode, setMode] = useState('visual');        // 'visual' | 'editor' (pour entry)
+  const [view, setView] = useState('dashboard'); // 'dashboard'|'list'|'entry'|'new'|'pdf-export'
+  const [curCat, setCurCat] = useState(null);
+  const [curId, setCurId] = useState(null);
+  const [mode, setMode] = useState('visual');
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,7 +40,8 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
 
   const saveTimer = useRef(null);
 
-  // ── Sauvegarde automatique (500ms après chaque modif) ────────────────
+  // ── Sauvegarde automatique ────────────────────────────────────────────
+
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
@@ -53,17 +54,12 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
     return () => clearTimeout(saveTimer.current);
   }, [data, project.id]);
 
-  // ── Raccourci Ctrl+K (recherche) ─────────────────────────────────────
+  // ── Raccourci Ctrl+K ──────────────────────────────────────────────────
+
   useEffect(() => {
     const handler = e => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-      if (e.key === 'Escape') {
-        setSearchOpen(false);
-        setEditProjName(null);
-      }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(true); }
+      if (e.key === 'Escape') { setSearchOpen(false); setEditProjName(null); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -71,64 +67,21 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
 
   // ── Helpers ───────────────────────────────────────────────────────────
 
-  const flash = msg => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  };
+  const flash = msg => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
   const nav = useCallback(id => {
-    setCurId(id);
-    setView('entry');
-    setMode('visual');
-    setSearchOpen(false);
-    setSearchQuery('');
+    setCurId(id); setView('entry'); setMode('visual');
+    setSearchOpen(false); setSearchQuery('');
   }, []);
 
   const searchResults = searchQuery.trim()
     ? Object.values(data.entries)
         .filter(e =>
           [e.name, e.description || '', ...Object.values(e.fields || {}).map(v => (typeof v === 'string' ? v : ''))]
-            .join(' ')
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase()),
+            .join(' ').toLowerCase().includes(searchQuery.toLowerCase()),
         )
         .slice(0, 15)
     : [];
-
-  const exportJSON = () => {
-    const blob = new Blob([JSON.stringify({ project, data }, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `${project.name.replace(/\s+/g, '_')}_export.json`;
-    a.click();
-    flash('Export !');
-  };
-
-  const importJSON = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.onchange = e => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = re => {
-        try {
-          const imp = JSON.parse(re.target.result);
-          if (imp.data) {
-            setData(imp.data);
-            flash('Import !');
-          } else {
-            flash('Format invalide');
-          }
-        } catch {
-          flash('Erreur');
-        }
-      };
-      reader.readAsText(file);
-    };
-    input.click();
-  };
 
   const handleRenameProject = () => {
     if (!editProjName?.trim()) return;
@@ -140,61 +93,34 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
     flash('Renommé !');
   };
 
-  // ── Suppression d'une fiche ───────────────────────────────────────────
   const handleDeleteEntry = () => {
-    const entryCategory = delEntry.category; // mémoriser avant suppression
+    const entryCategory = delEntry.category;
     const updated = { ...data.entries };
     delete updated[delEntry.id];
     setData({ ...data, entries: updated });
     setDelEntry(null);
-    // Retourner sur la liste de la catégorie de la fiche supprimée
-    setCurCat(entryCategory);
-    setListSearch('');
-    setView('list');
+    setCurCat(entryCategory); setListSearch(''); setView('list');
     flash('Supprimée');
   };
 
-  // ── Sauvegarder / créer une fiche ────────────────────────────────────
   const handleSaveEntry = upd => {
     try {
       const now = Date.now();
-      setData({
-        ...data,
-        entries: {
-          ...data.entries,
-          [curId]: { ...data.entries[curId], ...upd, updatedAt: now },
-        },
-      });
+      setData({ ...data, entries: { ...data.entries, [curId]: { ...data.entries[curId], ...upd, updatedAt: now } } });
       flash('Enregistré');
       setTimeout(() => setMode('visual'), 50);
-    } catch {
-      flash('Erreur');
-    }
+    } catch { flash('Erreur'); }
   };
 
   const handleCreateEntry = upd => {
     try {
       const id = data.nextId;
       const now = Date.now();
-      setData({
-        entries: {
-          ...data.entries,
-          [id]: { id, category: curCat, ...upd, createdAt: now, updatedAt: now },
-        },
-        nextId: id + 1,
-      });
+      setData({ entries: { ...data.entries, [id]: { id, category: curCat, ...upd, createdAt: now, updatedAt: now } }, nextId: id + 1 });
       flash('Créée');
-      setTimeout(() => {
-        setCurId(id);
-        setView('entry');
-        setMode('visual');
-      }, 50);
-    } catch {
-      flash('Erreur');
-    }
+      setTimeout(() => { setCurId(id); setView('entry'); setMode('visual'); }, 50);
+    } catch { flash('Erreur'); }
   };
-
-  // ── Rendu conditionnel selon la vue ───────────────────────────────────
 
   const curEntry = curId ? data.entries[curId] : null;
   const cat = curCat ? CATEGORIES[curCat] : null;
@@ -206,23 +132,26 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
         onGoProjects={onGoProjects}
         onEditName={name => setEditProjName(name)}
         onSearch={() => setSearchOpen(true)}
-        onExport={exportJSON}
-        onImport={importJSON}
+        onExportPdf={() => setView('pdf-export')}
+        onProfile={onProfile}
+        userProfile={userProfile}
       />
+
+      {/* ── Export PDF ── */}
+      {view === 'pdf-export' && (
+        <PdfExportScreen
+          project={project}
+          data={data}
+          onBack={() => setView('dashboard')}
+        />
+      )}
 
       {/* ── Dashboard ── */}
       {view === 'dashboard' && (
         <DashboardScreen
           data={data}
-          onOpenCategory={key => {
-            setCurCat(key);
-            setListSearch('');
-            setView('list');
-          }}
-          onNewEntry={key => {
-            setCurCat(key);
-            setView('new');
-          }}
+          onOpenCategory={key => { setCurCat(key); setListSearch(''); setView('list'); }}
+          onNewEntry={key => { setCurCat(key); setView('new'); }}
           onNav={nav}
         />
       )}
@@ -244,68 +173,27 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       {/* ── Fiche (lecture / édition) ── */}
       {view === 'entry' && curEntry && (
         <>
-          {/* Barre de navigation de la fiche */}
-          <div
-            style={{
-              padding: '20px 0 14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              flexWrap: 'wrap',
-            }}
-          >
+          <div style={{ padding: '20px 0 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <button style={{ ...sBtn, padding: '6px 10px' }} onClick={() => setView('dashboard')}>←</button>
             <button
               style={{ ...sBtn, padding: '6px 10px' }}
-              onClick={() => setView('dashboard')}
-            >
-              ←
-            </button>
-            <button
-              style={{ ...sBtn, padding: '6px 10px' }}
-              onClick={() => {
-                setCurCat(curEntry.category);
-                setView('list');
-              }}
+              onClick={() => { setCurCat(curEntry.category); setView('list'); }}
             >
               {CATEGORIES[curEntry.category]?.icon} {CATEGORIES[curEntry.category]?.label}
             </button>
             <div style={{ flex: 1 }} />
 
             {/* Bascule Lecture / Édition */}
-            <div
-              style={{
-                display: 'flex',
-                border: `1px solid ${T.bd}`,
-                borderRadius: 4,
-                overflow: 'hidden',
-              }}
-            >
+            <div style={{ display: 'flex', border: `1px solid ${T.bd}`, borderRadius: 4, overflow: 'hidden' }}>
               <button
                 onClick={() => setMode('visual')}
-                style={{
-                  ...sBtn,
-                  border: 'none',
-                  borderRadius: 0,
-                  padding: '6px 14px',
-                  fontSize: 12,
-                  background: mode === 'visual' ? T.ac : 'transparent',
-                  color: mode === 'visual' ? '#0f0e0d' : T.mu,
-                }}
+                style={{ ...sBtn, border: 'none', borderRadius: 0, padding: '6px 14px', fontSize: 12, background: mode === 'visual' ? T.ac : 'transparent', color: mode === 'visual' ? '#0f0e0d' : T.mu }}
               >
                 👁
               </button>
               <button
                 onClick={() => setMode('editor')}
-                style={{
-                  ...sBtn,
-                  border: 'none',
-                  borderRadius: 0,
-                  padding: '6px 14px',
-                  fontSize: 12,
-                  borderLeft: `1px solid ${T.bd}`,
-                  background: mode === 'editor' ? T.ac : 'transparent',
-                  color: mode === 'editor' ? '#0f0e0d' : T.mu,
-                }}
+                style={{ ...sBtn, border: 'none', borderRadius: 0, padding: '6px 14px', fontSize: 12, borderLeft: `1px solid ${T.bd}`, background: mode === 'editor' ? T.ac : 'transparent', color: mode === 'editor' ? '#0f0e0d' : T.mu }}
               >
                 ✏️
               </button>
@@ -336,9 +224,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
               entry={curEntry}
               entries={data.entries}
               onNav={nav}
-              onUpdateEntry={updated => {
-                setData({ ...data, entries: { ...data.entries, [updated.id]: updated } });
-              }}
+              onUpdateEntry={updated => setData({ ...data, entries: { ...data.entries, [updated.id]: updated } })}
             />
           )}
         </>
@@ -348,12 +234,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       {view === 'new' && curCat && (
         <>
           <div style={{ padding: '20px 0 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              style={{ ...sBtn, padding: '6px 10px' }}
-              onClick={() => setView('dashboard')}
-            >
-              ← Annuler
-            </button>
+            <button style={{ ...sBtn, padding: '6px 10px' }} onClick={() => setView('dashboard')}>← Annuler</button>
             <h2 style={{ margin: 0, fontSize: 18, flex: 1, color: cat.color }}>
               {cat.icon} Nouvelle fiche — {cat.label}
             </h2>
@@ -370,7 +251,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
         </>
       )}
 
-      {/* ── Overlays & modals ── */}
+      {/* ── Overlays ── */}
       {searchOpen && (
         <SearchOverlay
           query={searchQuery}
@@ -381,19 +262,8 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
         />
       )}
 
-      <DeleteEntryModal
-        entry={delEntry}
-        onConfirm={handleDeleteEntry}
-        onCancel={() => setDelEntry(null)}
-      />
-
-      <EditProjectNameModal
-        name={editProjName}
-        onChange={setEditProjName}
-        onConfirm={handleRenameProject}
-        onCancel={() => setEditProjName(null)}
-      />
-
+      <DeleteEntryModal entry={delEntry} onConfirm={handleDeleteEntry} onCancel={() => setDelEntry(null)} />
+      <EditProjectNameModal name={editProjName} onChange={setEditProjName} onConfirm={handleRenameProject} onCancel={() => setEditProjName(null)} />
       <Toast message={toast} />
     </>
   );

@@ -7,7 +7,7 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth, ADMIN_EMAIL } from '../../lib/firebase';
-import { getUserStatus, createPendingUser } from '../../lib/firestore';
+import { getUserStatus, createPendingUser, createUserProfile } from '../../lib/firestore';
 import { T, sCard, sInp, sBtnA, sBtn } from '../../styles/theme';
 
 export function AuthGate({ children }) {
@@ -32,8 +32,11 @@ export function AuthGate({ children }) {
           if (statusData) {
             setUserStatus(statusData.status);
           } else {
-            // Nouvel utilisateur sans doc de statut → créer une entrée pending
-            await createPendingUser(u.uid, u.email);
+            // Nouvel utilisateur → créer statut pending + profil avec pseudo auto
+            await Promise.all([
+              createPendingUser(u.uid, u.email),
+              createUserProfile(u.uid),
+            ]);
             setUserStatus('pending');
           }
         }

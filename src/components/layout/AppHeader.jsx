@@ -4,14 +4,14 @@
  * Contient :
  * - Bouton retour vers la liste des projets
  * - Nom du projet (cliquable pour le renommer)
- * - Boutons : export JSON, import JSON, déconnexion, recherche
+ * - Bouton profil (pseudo de l'utilisateur)
+ * - Bouton export PDF
+ * - Recherche
  */
 
-import { signOut } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
 import { T, sBs, sBtn } from '../../styles/theme';
 
-export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExport, onImport }) {
+export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExportPdf, onProfile, userProfile }) {
   return (
     <div
       style={{
@@ -26,35 +26,19 @@ export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExpor
     >
       {/* Gauche : bouton globe + nom du projet */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button
-          style={{ ...sBs, padding: '4px 10px' }}
-          onClick={onGoProjects}
-        >
+        <button style={{ ...sBs, padding: '4px 10px' }} onClick={onGoProjects}>
           🌍
         </button>
         <div>
-          <p
-            style={{
-              fontSize: 10,
-              color: T.dm,
-              letterSpacing: 3,
-              textTransform: 'uppercase',
-              margin: 0,
-            }}
-          >
+          <p style={{ fontSize: 10, color: T.dm, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>
             Encyclopédie
           </p>
           <h1
             onClick={() => onEditName(project?.name || '')}
             style={{
-              fontSize: 18,
-              fontWeight: 700,
-              color: T.ac,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              margin: 0,
-              cursor: 'pointer',
-              borderBottom: '1px dashed ' + T.ac + '44',
+              fontSize: 18, fontWeight: 700, color: T.ac,
+              letterSpacing: 1, textTransform: 'uppercase', margin: 0,
+              cursor: 'pointer', borderBottom: '1px dashed ' + T.ac + '44',
             }}
           >
             {project?.name}
@@ -64,17 +48,29 @@ export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExpor
 
       {/* Droite : actions */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-        <button style={sBs} onClick={onExport} title="Exporter en JSON">
-          📥
-        </button>
-        <button style={sBs} onClick={onImport} title="Importer un JSON">
-          📤
-        </button>
-        <button style={sBs} onClick={() => signOut(auth)} title="Déconnexion">
-          🚪
+        <button style={sBs} onClick={onExportPdf} title="Exporter en PDF">
+          📄
         </button>
         <button style={sBtn} onClick={onSearch} title="Rechercher (Ctrl+K)">
           🔍
+        </button>
+        {/* Bouton profil — affiche le pseudo */}
+        <button
+          onClick={onProfile}
+          title="Mon profil"
+          style={{
+            ...sBs,
+            color: T.ac,
+            borderColor: T.ac + '44',
+            fontWeight: 600,
+            letterSpacing: 0.5,
+            maxWidth: 140,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {userProfile?.displayName || 'Profil'}
         </button>
       </div>
     </div>

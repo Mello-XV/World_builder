@@ -9,9 +9,9 @@ import { useState } from 'react';
 import { saveProject, deleteProjectDB } from '../lib/firestore';
 import { DeleteProjectModal } from '../components/modals/DeleteProjectModal';
 import { Toast } from '../components/layout/Toast';
-import { T, sCard, sInp, sLbl, sBtnA, sBtn } from '../styles/theme';
+import { T, sCard, sInp, sLbl, sBtnA, sBtn, sBs } from '../styles/theme';
 
-export function ProjectsScreen({ projects, onProjectOpen, onProjectsChange }) {
+export function ProjectsScreen({ projects, onProjectOpen, onProjectsChange, onProfile, userProfile }) {
   const [newProj, setNewProj] = useState(null);  // null = modal fermé, {} = modal ouvert
   const [delProj, setDelProj] = useState(null);
   const [toast, setToast] = useState(null);
@@ -57,6 +57,16 @@ export function ProjectsScreen({ projects, onProjectOpen, onProjectsChange }) {
         padding: 20,
       }}
     >
+      {/* Bouton profil (haut droite) */}
+      {onProfile && (
+        <button
+          onClick={onProfile}
+          style={{ ...sBs, position: 'fixed', top: 20, right: 20, color: T.ac, borderColor: T.ac + '44', fontWeight: 600 }}
+        >
+          {userProfile?.displayName || 'Profil'}
+        </button>
+      )}
+
       {/* Logo */}
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div style={{ fontSize: 48, marginBottom: 8 }}>🌍</div>
