@@ -299,9 +299,6 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         >
           U
         </button>
-        <span style={{ color: T.dm, fontSize: 10, alignSelf: 'center', marginLeft: 4 }}>
-          @mention · Tab pour indenter · coller un tableau Excel
-        </span>
       </div>
 
       <div

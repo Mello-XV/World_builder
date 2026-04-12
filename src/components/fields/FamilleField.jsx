@@ -2,7 +2,8 @@
  * FamilleField — gestion de l'arbre familial d'un personnage.
  *
  * Chaque membre de famille a : un lien (Père, Mère...), un nom, une description.
- * On peut ajouter des types de liens personnalisés.
+ * Quand on choisit « Autres… » dans le lien familial, un champ inline apparaît
+ * pour saisir un nouveau type qui est ajouté à la liste.
  */
 
 import { useState } from 'react';
@@ -13,8 +14,20 @@ import { RichText } from '../ui/RichText';
 
 export function FamilleEditor({ value, onChange, entries }) {
   const members = Array.isArray(value) ? value : [];
-  const [customTypeInput, setCustomTypeInput] = useState('');
   const [familyTypes, setFamilyTypes] = useState([...FAMILY_TYPES_BASE]);
+  // editingCustom : { [memberIndex]: currentInputValue }
+  const [editingCustom, setEditingCustom] = useState({});
+
+  const confirmCustomType = (i) => {
+    const val = (editingCustom[i] ?? '').trim();
+    if (val && !familyTypes.includes(val)) {
+      setFamilyTypes(prev => [...prev, val]);
+    }
+    const updated = [...members];
+    updated[i] = { ...updated[i], type: val };
+    onChange(updated);
+    setEditingCustom(prev => { const next = { ...prev }; delete next[i]; return next; });
+  };
 
   return (
     <div>
@@ -42,22 +55,44 @@ export function FamilleEditor({ value, onChange, entries }) {
             {/* Lien familial */}
             <div style={{ flex: '0 0 180px' }}>
               <label style={{ ...sLbl, color: T.mu, fontSize: 10 }}>Lien familial</label>
-              <select
-                style={{ ...sSel, fontSize: 13, padding: '6px 10px' }}
-                value={member.type}
-                onChange={ev => {
-                  const updated = [...members];
-                  updated[i] = { ...updated[i], type: ev.target.value };
-                  onChange(updated);
-                }}
-              >
-                <option value="">— Type —</option>
-                {familyTypes.map(t => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
+
+              {editingCustom[i] !== undefined ? (
+                /* Saisie d'un nouveau type personnalisé */
+                <input
+                  autoFocus
+                  style={{ ...sInp, fontSize: 13, padding: '6px 10px' }}
+                  value={editingCustom[i]}
+                  onChange={ev => setEditingCustom(prev => ({ ...prev, [i]: ev.target.value }))}
+                  onKeyDown={ev => {
+                    if (ev.key === 'Enter') { ev.preventDefault(); confirmCustomType(i); }
+                    if (ev.key === 'Escape') {
+                      setEditingCustom(prev => { const next = { ...prev }; delete next[i]; return next; });
+                    }
+                  }}
+                  onBlur={() => confirmCustomType(i)}
+                  placeholder="Nouveau lien… (Entrée pour valider)"
+                />
+              ) : (
+                <select
+                  style={{ ...sSel, fontSize: 13, padding: '6px 10px' }}
+                  value={member.type}
+                  onChange={ev => {
+                    if (ev.target.value === '__autres__') {
+                      setEditingCustom(prev => ({ ...prev, [i]: '' }));
+                    } else {
+                      const updated = [...members];
+                      updated[i] = { ...updated[i], type: ev.target.value };
+                      onChange(updated);
+                    }
+                  }}
+                >
+                  <option value="">— Type —</option>
+                  {familyTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  <option value="__autres__">Autres…</option>
+                </select>
+              )}
             </div>
 
             {/* Nom */}
@@ -94,32 +129,12 @@ export function FamilleEditor({ value, onChange, entries }) {
         </div>
       ))}
 
-      {/* Ajout de membre et de type personnalisé */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => onChange([...members, { type: '', name: '', description: '' }])}
-          style={{ ...sBs, color: T.ac, borderColor: T.ac + '44' }}
-        >
-          + Membre
-        </button>
-        <input
-          style={{ ...sInp, width: 140, fontSize: 12, padding: '5px 8px' }}
-          value={customTypeInput}
-          onChange={ev => setCustomTypeInput(ev.target.value)}
-          placeholder="Nouveau type…"
-        />
-        <button
-          onClick={() => {
-            if (customTypeInput.trim() && !familyTypes.includes(customTypeInput.trim())) {
-              setFamilyTypes([...familyTypes, customTypeInput.trim()]);
-              setCustomTypeInput('');
-            }
-          }}
-          style={{ ...sBs, padding: '5px 8px' }}
-        >
-          +
-        </button>
-      </div>
+      <button
+        onClick={() => onChange([...members, { type: '', name: '', description: '' }])}
+        style={{ ...sBs, color: T.ac, borderColor: T.ac + '44' }}
+      >
+        + Membre
+      </button>
     </div>
   );
 }
