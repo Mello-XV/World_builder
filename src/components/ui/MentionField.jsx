@@ -71,63 +71,6 @@ function tsvToHtmlTable(tsv) {
   return `<table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
 }
 
-// ── Nettoyage du HTML collé (Word, navigateur) ────────────────────────────
-// Supprime les styles étrangers (fond blanc, polices, marges Word)
-// en ne conservant que le gras/italique/souligné et les balises structurelles.
-
-function cleanPastedHtml(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-
-  // Supprimer les éléments non-contenu
-  doc.querySelectorAll('style, meta, link, script').forEach(el => el.remove());
-
-  // Normaliser les \n dans les nœuds texte → espace.
-  // Word encode ses retours à la ligne visuels (largeur de page) comme des \n
-  // bruts dans le HTML. Le contenteditable (whiteSpace:pre-wrap) les affiche
-  // comme de vrais sauts de ligne, d'où les coupures au milieu des phrases.
-  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-  let tnode;
-  while ((tnode = walker.nextNode())) {
-    tnode.textContent = tnode.textContent.replace(/\n/g, ' ').replace(/ {2,}/g, ' ');
-  }
-
-  doc.body.querySelectorAll('*').forEach(el => {
-    const tag = el.tagName.toLowerCase();
-
-    // Mémoriser le formatage avant de tout effacer
-    const isBold = el.style.fontWeight === 'bold' || el.style.fontWeight === '700';
-    const isItalic = el.style.fontStyle === 'italic';
-    const isUnderline = el.style.textDecoration?.includes('underline');
-
-    // Supprimer tous les attributs de style Word
-    el.removeAttribute('style');
-    el.removeAttribute('class');
-    el.removeAttribute('lang');
-    el.removeAttribute('align');
-    el.removeAttribute('valign');
-
-    // Réappliquer uniquement le formatage voulu
-    if (isBold) el.style.fontWeight = 'bold';
-    if (isItalic) el.style.fontStyle = 'italic';
-    if (isUnderline) el.style.textDecoration = 'underline';
-
-    // Harmoniser les marges des paragraphes entre édition et vue
-    if (tag === 'p' || tag === 'div') {
-      el.style.margin = '4px 0';
-      el.style.lineHeight = '1.7';
-    }
-  });
-
-  // Supprimer les paragraphes vides (artefacts Word : <p>&nbsp;</p>, <p><o:p></o:p></p>…)
-  // qui créent des lignes blanches superflues avant et après le contenu.
-  doc.body.querySelectorAll('p, div').forEach(el => {
-    if (!el.textContent.replace(/\u00a0/g, '').trim() && !el.querySelector('img, table')) {
-      el.remove();
-    }
-  });
-
-  return doc.body.innerHTML;
-}
 
 export function MentionField({ value, onChange, entries, placeholder, multiline, style: xs }) {
   const [mention, setMention] = useState({ active: false, query: '', charCount: 0 });
@@ -206,19 +149,25 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         return;
       }
 
-      // Texte ordinaire : nettoyer le HTML Word/navigateur (fond blanc, polices…)
-      // ou utiliser le texte brut si pas de HTML dans le presse-papiers.
-      if (htmlClip) {
-        const cleaned = cleanPastedHtml(htmlClip);
-        document.execCommand('insertHTML', false, cleaned);
-      } else {
-        const escaped = plain
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/\n/g, '<br>');
-        document.execCommand('insertHTML', false, escaped);
-      }
+      // Texte ordinaire : toujours utiliser le texte brut.
+      // Le HTML de Word est trop imprévisible (retours visuels en \n ou <br>,
+      // paragraphes vides, fonds blancs…). Le texte brut est fiable :
+      // chaque ligne non-vide devient un <p>, les sauts de ligne intra-paragraphe
+      // (Word encode sa largeur de page en \n dans le plain text) sont ignorés.
+      const htmlContent = plain
+        .split(/\r?\n/)
+        .map(line => {
+          const text = line.trim();
+          if (!text) return '';
+          const escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          return `<p style="margin:4px 0;line-height:1.7">${escaped}</p>`;
+        })
+        .filter(Boolean)
+        .join('');
+      document.execCommand('insertHTML', false, htmlContent || plain);
       onChange(ref.current?.innerHTML || '');
     },
     [multiline, onChange],
