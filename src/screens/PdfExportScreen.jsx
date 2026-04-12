@@ -77,18 +77,55 @@ export function PdfExportScreen({ project, data, onBack }) {
           imageTimeout: 8000,
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.88);
         const A4W = 595; // points
         const A4H = 842;
-        const imgW = A4W;
-        const imgH = (canvas.height / canvas.width) * A4W;
+        const ptPerPx = A4W / canvas.width; // points per canvas pixel
+        const pxPerPage = Math.round(A4H / ptPerPx); // canvas pixels fitting one PDF page
 
+        // Pixel-data for background-row detection (smart page breaks)
+        const ctx2d = canvas.getContext('2d');
+        const pixelData = ctx2d.getImageData(0, 0, canvas.width, canvas.height).data;
+        const BG = [26, 25, 21]; // #1a1915
+        const TOL = 20;
+
+        const findSafeCut = (nominalY) => {
+          const limit = Math.max(0, nominalY - 300);
+          for (let y = Math.min(nominalY, canvas.height - 1); y > limit; y--) {
+            let isBg = true;
+            for (let x = 0; x < canvas.width; x++) {
+              const i = (y * canvas.width + x) * 4;
+              if (
+                Math.abs(pixelData[i]   - BG[0]) > TOL ||
+                Math.abs(pixelData[i+1] - BG[1]) > TOL ||
+                Math.abs(pixelData[i+2] - BG[2]) > TOL
+              ) { isBg = false; break; }
+            }
+            if (isBg) return y;
+          }
+          return nominalY; // fallback: no bg row found, cut anyway
+        };
+
+        // Build page cut points
+        const cuts = [0];
+        let nextNominal = pxPerPage;
+        while (nextNominal < canvas.height) {
+          const safe = findSafeCut(nextNominal);
+          cuts.push(safe);
+          nextNominal = safe + pxPerPage;
+        }
+        cuts.push(canvas.height);
+
+        // Build PDF — one cropped slice per page
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-        let y = 0;
-        while (y < imgH) {
-          if (y > 0) pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, -y, imgW, imgH);
-          y += A4H;
+        for (let i = 0; i < cuts.length - 1; i++) {
+          if (i > 0) pdf.addPage();
+          const y0 = cuts[i];
+          const y1 = cuts[i + 1];
+          const tmp = document.createElement('canvas');
+          tmp.width = canvas.width;
+          tmp.height = y1 - y0;
+          tmp.getContext('2d').drawImage(canvas, 0, -y0);
+          pdf.addImage(tmp.toDataURL('image/jpeg', 0.88), 'JPEG', 0, 0, A4W, (y1 - y0) * ptPerPx);
         }
 
         const safeName = (entry.name || 'fiche').replace(/[/\\?%*:|"<>]/g, '_');

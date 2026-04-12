@@ -61,7 +61,7 @@ function Section({ title, children }) {
 
 // ── Composant principal ───────────────────────────────────────────────────
 
-export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, projects }) {
+export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, projects, onProjectOpen }) {
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [nameSaved, setNameSaved] = useState(false);
 
@@ -263,9 +263,22 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {projects.map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bgI, borderRadius: 5, border: `1px solid ${T.bd}` }}>
+                <div
+                  key={p.id}
+                  onClick={() => { onProjectOpen && onProjectOpen(p, null); onClose(); }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    padding: '8px 12px', background: T.bgI, borderRadius: 5,
+                    border: `1px solid ${T.bd}`,
+                    cursor: onProjectOpen ? 'pointer' : 'default',
+                    transition: 'border-color 0.15s',
+                  }}
+                  onMouseEnter={e => { if (onProjectOpen) e.currentTarget.style.borderColor = T.ac + '88'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.bd; }}
+                >
                   <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}</span>
                   {p.description && <span style={{ fontSize: 12, color: T.mu }}>{p.description}</span>}
+                  {onProjectOpen && <span style={{ fontSize: 12, color: T.dm }}>→</span>}
                 </div>
               ))}
             </div>

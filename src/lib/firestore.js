@@ -15,6 +15,7 @@ import {
   deleteDoc,
   orderBy,
   query,
+  runTransaction,
 } from 'firebase/firestore';
 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -151,18 +152,23 @@ export async function setUserProfile(uid, data) {
 
 /**
  * Crée le profil d'un nouvel utilisateur avec un pseudo auto-généré "user-XX".
- * Le numéro est basé sur le nombre de profils existants au moment de la création.
+ * Utilise un compteur atomique dans appConfig/userCounter pour éviter les doublons
+ * et ne pas nécessiter de lister toute la collection userProfiles.
  */
 export async function createUserProfile(uid) {
   try {
-    // Vérifie d'abord qu'un profil n'existe pas déjà
     const existing = await getDoc(doc(db, 'userProfiles', uid));
     if (existing.exists()) return existing.data().displayName;
 
-    const snapshot = await getDocs(collection(db, 'userProfiles'));
-    const idx = snapshot.size; // 0 → user-00, 1 → user-01…
-    const displayName = `user-${idx.toString().padStart(2, '0')}`;
-    await setDoc(doc(db, 'userProfiles', uid), { displayName, createdAt: Date.now() });
+    let displayName;
+    const counterRef = doc(db, 'appConfig', 'userCounter');
+    await runTransaction(db, async tx => {
+      const counterSnap = await tx.get(counterRef);
+      const idx = counterSnap.exists() ? counterSnap.data().count : 0;
+      displayName = `user-${idx.toString().padStart(2, '0')}`;
+      tx.set(doc(db, 'userProfiles', uid), { displayName, createdAt: Date.now() });
+      tx.set(counterRef, { count: idx + 1 }, { merge: true });
+    });
     return displayName;
   } catch (e) {
     console.error('createUserProfile:', e);

@@ -93,6 +93,7 @@ function AppContent() {
           onClose={() => setProfileOpen(false)}
           onProfileUpdate={setUserProfile}
           projects={projects}
+          onProjectOpen={handleProjectOpen}
         />
       )}
 
