@@ -77,6 +77,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [tablePicker, setTablePicker] = useState(null); // null | { rows, cols }
   const ref = useRef(null);
+  const savedRangeRef = useRef(null); // curseur sauvegardé avant ouverture du table picker
 
   const allEntries = useMemo(() => Object.values(entries), [entries]);
 
@@ -125,6 +126,13 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
 
   const insertEmptyTable = useCallback((rows, cols) => {
     ref.current?.focus();
+    // Restaurer le curseur à l'endroit où il était avant l'ouverture du picker
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+      savedRangeRef.current = null;
+    }
     const th = Array.from({ length: cols }, () =>
       `<th style="padding:6px 10px;font-weight:700;border:1px solid #3a332a">&nbsp;</th>`
     ).join('');
@@ -147,10 +155,27 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
       const plain = ev.clipboardData.getData('text/plain');
       const htmlClip = ev.clipboardData.getData('text/html');
 
-      // Détecter un vrai tableau TSV : TOUTES les lignes non-vides ont des tabs.
-      // Cela évite de transformer des listes à puces (•\tTexte) en tableau,
-      // car la première ligne de titre n'a pas de tab.
       const plainLines = plain.trim().split('\n').filter(l => l.trim());
+
+      // Détecter une liste à puces : chaque ligne commence par un caractère puce.
+      // Ces listes ont souvent un tab après la puce (format Word/Office) et
+      // seraient faussement détectées comme TSV sans cette vérification en premier.
+      const BULLET_RE = /^\s*[•·▪▸►‣⁃∙○●◦\u2022\u2023\u25E6]\s*/;
+      const isBulletList = plainLines.length > 0 && plainLines.every(l => BULLET_RE.test(l));
+
+      if (isBulletList) {
+        const items = plainLines.map(l => {
+          const text = l.replace(BULLET_RE, '').replace(/^\t/, '').trim();
+          const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          return `<li style="margin:3px 0;line-height:1.7">${escaped}</li>`;
+        }).join('');
+        document.execCommand('insertHTML', false,
+          `<ul style="margin:6px 0;padding-left:22px">${items}</ul>`);
+        onChange(ref.current?.innerHTML || '');
+        return;
+      }
+
+      // Détecter un vrai tableau TSV : TOUTES les lignes non-vides ont des tabs.
       const isTsv =
         plain.includes('\t') &&
         plainLines.length >= 1 &&
@@ -166,11 +191,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         return;
       }
 
-      // Texte ordinaire : toujours utiliser le texte brut.
-      // Le HTML de Word est trop imprévisible (retours visuels en \n ou <br>,
-      // paragraphes vides, fonds blancs…). Le texte brut est fiable :
-      // chaque ligne non-vide devient un <p>, les sauts de ligne intra-paragraphe
-      // (Word encode sa largeur de page en \n dans le plain text) sont ignorés.
+      // Texte ordinaire : chaque ligne non-vide devient un <p>.
       const htmlContent = plain
         .split(/\r?\n/)
         .map(line => {
@@ -356,6 +377,11 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
           type="button"
           onMouseDown={e => {
             e.preventDefault();
+            // Sauvegarder le curseur avant que le picker ne prenne le focus
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+            }
             setTablePicker(p => p ? null : { rows: 3, cols: 2 });
           }}
           style={{ ...toolbarBtn, fontSize: 14 }}
