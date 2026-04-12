@@ -4,10 +4,10 @@
  * Gère la navigation de haut niveau :
  * 1. AuthGate       : vérifie si l'utilisateur est connecté
  * 2. ProjectsScreen : liste des projets (si pas de projet ouvert)
- * 3. WikiScreen     : wiki du projet ouvert
+ * 3. WikiScreen     : wiki du projet ouvert (propre ou suivi en lecture seule)
  * 4. ProfileScreen  : overlay profil (accessible depuis partout)
  *
- * Charge aussi la liste des projets et le profil utilisateur au démarrage.
+ * Charge aussi la liste des projets, projets suivis et le profil utilisateur au démarrage.
  */
 
 import { useState, useEffect } from 'react';
@@ -16,13 +16,17 @@ import { ProjectsScreen } from './screens/ProjectsScreen';
 import { WikiScreen } from './screens/WikiScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { AdminPanel } from './components/admin/AdminPanel';
-import { loadProjects, loadProjectData, getUserProfile, createUserProfile } from './lib/firestore';
+import {
+  loadProjects, loadProjectData, getUserProfile, createUserProfile,
+  getFollowedProjects, loadFollowedProjectData,
+} from './lib/firestore';
 import { auth, ADMIN_EMAIL } from './lib/firebase';
 import { T, sBs } from './styles/theme';
 
 function AppContent() {
   const [projects, setProjects] = useState([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [followedProjects, setFollowedProjects] = useState([]); // projets suivis chez d'autres users
   const [showAdmin, setShowAdmin] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
@@ -33,17 +37,20 @@ function AppContent() {
   // Projet et données actuellement ouverts
   const [currentProject, setCurrentProject] = useState(null);
   const [currentData, setCurrentData] = useState(null);
+  const [projectOwnerUid, setProjectOwnerUid] = useState(null); // uid du propriétaire du projet ouvert
+  const [isReadOnly, setIsReadOnly] = useState(false);
 
-  // Chargement initial : projets + profil utilisateur
+  // Chargement initial : projets + projets suivis + profil
   useEffect(() => {
     loadProjects().then(p => { setProjects(p); setProjectsLoaded(true); });
 
     if (currentUser) {
+      getFollowedProjects(currentUser.uid).then(setFollowedProjects);
+
       getUserProfile(currentUser.uid).then(async profile => {
         if (profile) {
           setUserProfile(profile);
         } else {
-          // Crée un profil par défaut si inexistant (premier login)
           const displayName = await createUserProfile(currentUser.uid);
           setUserProfile({ displayName });
         }
@@ -51,7 +58,11 @@ function AppContent() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Ouvrir un projet dont on est propriétaire ─────────────────────────
+
   const handleProjectOpen = async (project, preloadedData) => {
+    setIsReadOnly(false);
+    setProjectOwnerUid(currentUser?.uid || null);
     setCurrentProject(project);
     if (preloadedData) {
       setCurrentData(preloadedData);
@@ -59,12 +70,27 @@ function AppContent() {
       const data = await loadProjectData(project.id);
       setCurrentData(data);
     }
+    setProfileOpen(false);
+  };
+
+  // ── Ouvrir un projet suivi (lecture seule) ────────────────────────────
+
+  const handleFollowedProjectOpen = async (ownerUid, projectId, projectName) => {
+    setIsReadOnly(true);
+    setProjectOwnerUid(ownerUid);
+    setCurrentProject({ id: projectId, name: projectName });
+    const data = await loadFollowedProjectData(ownerUid, projectId);
+    setCurrentData(data);
+    setProfileOpen(false);
   };
 
   const handleGoProjects = () => {
     setCurrentProject(null);
     setCurrentData(null);
+    setIsReadOnly(false);
+    setProjectOwnerUid(null);
     loadProjects().then(setProjects);
+    getFollowedProjects(currentUser?.uid).then(setFollowedProjects);
   };
 
   const handleProjectUpdate = updatedProject => {
@@ -93,7 +119,9 @@ function AppContent() {
           onClose={() => setProfileOpen(false)}
           onProfileUpdate={setUserProfile}
           projects={projects}
+          followedProjects={followedProjects}
           onProjectOpen={handleProjectOpen}
+          onFollowedProjectOpen={handleFollowedProjectOpen}
         />
       )}
 
@@ -106,15 +134,20 @@ function AppContent() {
           onProjectUpdate={handleProjectUpdate}
           onProfile={() => setProfileOpen(true)}
           userProfile={userProfile}
+          ownerUid={projectOwnerUid}
+          isReadOnly={isReadOnly}
         />
       ) : (
         <>
           <ProjectsScreen
             projects={projects}
+            followedProjects={followedProjects}
             onProjectOpen={handleProjectOpen}
+            onFollowedProjectOpen={handleFollowedProjectOpen}
             onProjectsChange={setProjects}
             onProfile={() => setProfileOpen(true)}
             userProfile={userProfile}
+            currentUser={currentUser}
           />
           {isAdmin && (
             <button

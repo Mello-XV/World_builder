@@ -16,6 +16,8 @@ import {
   orderBy,
   query,
   runTransaction,
+  where,
+  onSnapshot,
 } from 'firebase/firestore';
 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -174,6 +176,171 @@ export async function createUserProfile(uid) {
     console.error('createUserProfile:', e);
     return 'user-??';
   }
+}
+
+// ── Partage et suivi de projet ────────────────────────────────────────────
+
+function generateCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // pas de 0/O/1/I
+  return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+}
+
+/**
+ * Retourne le code de partage d'un projet, en le créant si besoin.
+ * Le code est stocké dans le document projet ET dans shareCodes/{code}.
+ */
+export async function getOrCreateShareCode(projectId) {
+  const uid = getUserId();
+  if (!uid) return null;
+  try {
+    const projRef = doc(db, 'users', uid, 'projects', projectId);
+    const projSnap = await getDoc(projRef);
+    if (!projSnap.exists()) return null;
+    const data = projSnap.data();
+    if (data.shareCode) return data.shareCode;
+    let code;
+    do { code = generateCode(); }
+    while ((await getDoc(doc(db, 'shareCodes', code))).exists());
+    await Promise.all([
+      setDoc(projRef, { shareCode: code }, { merge: true }),
+      setDoc(doc(db, 'shareCodes', code), { ownerUid: uid, projectId, projectName: data.name }),
+    ]);
+    return code;
+  } catch (e) {
+    console.error('getOrCreateShareCode:', e);
+    return null;
+  }
+}
+
+/** Cherche un projet par code de partage. Retourne { ownerUid, projectId, projectName } ou null. */
+export async function findProjectByCode(rawCode) {
+  try {
+    const snap = await getDoc(doc(db, 'shareCodes', rawCode.trim().toUpperCase()));
+    return snap.exists() ? snap.data() : null;
+  } catch (e) {
+    console.error('findProjectByCode:', e);
+    return null;
+  }
+}
+
+/**
+ * Envoie une demande de suivi.
+ * Retourne { success, projectName } ou { error }.
+ */
+export async function sendFollowRequest(fromUid, fromDisplayName, shareCode) {
+  try {
+    const info = await findProjectByCode(shareCode);
+    if (!info) return { error: 'Code invalide' };
+    if (info.ownerUid === fromUid) return { error: 'Tu ne peux pas suivre ton propre projet' };
+    const reqId = `${fromUid}_${info.projectId}`;
+    const existing = await getDoc(doc(db, 'followRequests', reqId));
+    if (existing.exists()) {
+      const s = existing.data().status;
+      if (s === 'approved') return { error: 'Tu suis déjà ce projet' };
+      if (s === 'pending') return { error: 'Demande déjà envoyée, en attente d\'approbation' };
+    }
+    await setDoc(doc(db, 'followRequests', reqId), {
+      fromUid, fromDisplayName,
+      toUid: info.ownerUid,
+      projectId: info.projectId,
+      projectName: info.projectName,
+      status: 'pending',
+      createdAt: Date.now(),
+    });
+    return { success: true, projectName: info.projectName };
+  } catch (e) {
+    console.error('sendFollowRequest:', e);
+    return { error: e.message };
+  }
+}
+
+/** Retourne toutes les demandes reçues par un propriétaire. */
+export async function getFollowRequestsForOwner(toUid) {
+  try {
+    const snap = await getDocs(query(collection(db, 'followRequests'), where('toUid', '==', toUid)));
+    return snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt);
+  } catch (e) {
+    console.error('getFollowRequestsForOwner:', e);
+    return [];
+  }
+}
+
+/** Approuve ou refuse une demande de suivi (req = objet complet de la demande). */
+export async function respondToFollowRequest(requestId, approve, req) {
+  try {
+    await setDoc(doc(db, 'followRequests', requestId),
+      { status: approve ? 'approved' : 'rejected', reviewedAt: Date.now() }, { merge: true });
+    if (approve) {
+      const projSnap = await getDoc(doc(db, 'users', req.toUid, 'projects', req.projectId));
+      const curr = projSnap.exists() ? (projSnap.data().approvedFollowers || []) : [];
+      if (!curr.includes(req.fromUid)) {
+        await setDoc(doc(db, 'users', req.toUid, 'projects', req.projectId),
+          { approvedFollowers: [...curr, req.fromUid] }, { merge: true });
+      }
+      await setDoc(doc(db, 'users', req.fromUid, 'following', req.projectId), {
+        ownerUid: req.toUid, projectId: req.projectId,
+        projectName: req.projectName, approvedAt: Date.now(),
+      });
+    }
+  } catch (e) {
+    console.error('respondToFollowRequest:', e);
+  }
+}
+
+/** Retourne la liste des projets suivis par un utilisateur. */
+export async function getFollowedProjects(uid) {
+  try {
+    const snap = await getDocs(collection(db, 'users', uid, 'following'));
+    return snap.docs.map(d => d.data());
+  } catch (e) {
+    console.error('getFollowedProjects:', e);
+    return [];
+  }
+}
+
+/** Charge les données d'un projet dont on est follower (pas owner). */
+export async function loadFollowedProjectData(ownerUid, projectId) {
+  try {
+    const d = await getDoc(doc(db, 'users', ownerUid, 'projectData', projectId));
+    return d.exists() ? d.data() : { entries: {}, nextId: 1 };
+  } catch (e) {
+    console.error('loadFollowedProjectData:', e);
+    return { entries: {}, nextId: 1 };
+  }
+}
+
+// ── Commentaires ──────────────────────────────────────────────────────────
+
+/**
+ * Abonnement temps réel aux commentaires d'une fiche.
+ * Retourne la fonction de désabonnement.
+ */
+export function subscribeToComments(ownerUid, projectId, entryId, callback) {
+  const entryKey = `${ownerUid}_${projectId}_${String(entryId)}`;
+  const q = query(collection(db, 'comments'), where('entryKey', '==', entryKey));
+  return onSnapshot(q, snap => {
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    docs.sort((a, b) => a.createdAt - b.createdAt);
+    callback(docs);
+  }, err => { console.error('subscribeToComments:', err); callback([]); });
+}
+
+/** Ajoute un commentaire sur une fiche. */
+export async function addComment(ownerUid, projectId, entryId, authorUid, authorName, text) {
+  const entryKey = `${ownerUid}_${projectId}_${String(entryId)}`;
+  try {
+    await setDoc(doc(db, 'comments', `${entryKey}_${Date.now()}`), {
+      entryKey, ownerUid, projectId, entryId: String(entryId),
+      authorUid, authorName, text: text.trim(), createdAt: Date.now(),
+    });
+  } catch (e) { console.error('addComment:', e); }
+}
+
+/** Supprime un commentaire. */
+export async function deleteComment(commentId) {
+  try {
+    await deleteDoc(doc(db, 'comments', commentId));
+  } catch (e) { console.error('deleteComment:', e); }
 }
 
 /** Sauvegarde les données (fiches) d'un projet. Retourne true si succès, false sinon. */

@@ -24,7 +24,7 @@ import { EntryEditor } from '../components/entry/EntryEditor';
 import { CATEGORIES } from '../constants/categories';
 import { T, sBtn } from '../styles/theme';
 
-export function WikiScreen({ project: initialProject, data: initialData, onGoProjects, onProjectUpdate, onProfile, userProfile }) {
+export function WikiScreen({ project: initialProject, data: initialData, onGoProjects, onProjectUpdate, onProfile, userProfile, ownerUid, isReadOnly }) {
   const [project, setProject] = useState(initialProject);
   const [data, setData] = useState(initialData);
   const [view, setView] = useState('dashboard'); // 'dashboard'|'list'|'entry'|'new'|'pdf-export'
@@ -151,7 +151,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
         <DashboardScreen
           data={data}
           onOpenCategory={key => { setCurCat(key); setListSearch(''); setView('list'); }}
-          onNewEntry={key => { setCurCat(key); setView('new'); }}
+          onNewEntry={isReadOnly ? null : key => { setCurCat(key); setView('new'); }}
           onNav={nav}
         />
       )}
@@ -162,8 +162,8 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
           category={curCat}
           entries={data.entries}
           onNav={nav}
-          onNew={() => setView('new')}
-          onDelete={e => setDelEntry(e)}
+          onNew={isReadOnly ? null : () => setView('new')}
+          onDelete={isReadOnly ? null : e => setDelEntry(e)}
           onBack={() => setView('dashboard')}
           search={listSearch}
           onSearch={setListSearch}
@@ -183,23 +183,33 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
             </button>
             <div style={{ flex: 1 }} />
 
-            {/* Bascule Lecture / Édition */}
-            <div style={{ display: 'flex', border: `1px solid ${T.bd}`, borderRadius: 4, overflow: 'hidden' }}>
-              <button
-                onClick={() => setMode('visual')}
-                style={{ ...sBtn, border: 'none', borderRadius: 0, padding: '6px 14px', fontSize: 12, background: mode === 'visual' ? T.ac : 'transparent', color: mode === 'visual' ? '#0f0e0d' : T.mu }}
-              >
-                👁
-              </button>
-              <button
-                onClick={() => setMode('editor')}
-                style={{ ...sBtn, border: 'none', borderRadius: 0, padding: '6px 14px', fontSize: 12, borderLeft: `1px solid ${T.bd}`, background: mode === 'editor' ? T.ac : 'transparent', color: mode === 'editor' ? '#0f0e0d' : T.mu }}
-              >
-                ✏️
-              </button>
-            </div>
+            {/* Badge lecture seule */}
+            {isReadOnly && (
+              <span style={{ fontSize: 11, color: T.mu, letterSpacing: 1, padding: '4px 8px', border: `1px solid ${T.bd}`, borderRadius: 4 }}>
+                Lecture seule
+              </span>
+            )}
 
-            {mode === 'visual' && (
+            {/* Bascule Lecture / Édition (masquée en lecture seule) */}
+            {!isReadOnly && (
+              <div style={{ display: 'flex', border: `1px solid ${T.bd}`, borderRadius: 4, overflow: 'hidden' }}>
+                <button
+                  onClick={() => setMode('visual')}
+                  style={{ ...sBtn, border: 'none', borderRadius: 0, padding: '6px 14px', fontSize: 12, background: mode === 'visual' ? T.ac : 'transparent', color: mode === 'visual' ? '#0f0e0d' : T.mu }}
+                >
+                  👁
+                </button>
+                <button
+                  onClick={() => setMode('editor')}
+                  style={{ ...sBtn, border: 'none', borderRadius: 0, padding: '6px 14px', fontSize: 12, borderLeft: `1px solid ${T.bd}`, background: mode === 'editor' ? T.ac : 'transparent', color: mode === 'editor' ? '#0f0e0d' : T.mu }}
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
+
+            {/* Suppression (masquée en lecture seule) */}
+            {!isReadOnly && mode === 'visual' && (
               <button
                 style={{ ...sBtn, color: '#9b4d4d', borderColor: '#9b4d4d44', padding: '6px 10px' }}
                 onClick={() => setDelEntry(curEntry)}
@@ -209,7 +219,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
             )}
           </div>
 
-          {mode === 'editor' ? (
+          {!isReadOnly && mode === 'editor' ? (
             <EntryEditor
               key={'edit-' + curId}
               entry={curEntry}
@@ -225,6 +235,9 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
               entries={data.entries}
               onNav={nav}
               onUpdateEntry={updated => setData({ ...data, entries: { ...data.entries, [updated.id]: updated } })}
+              ownerUid={ownerUid}
+              projectId={project.id}
+              userProfile={userProfile}
             />
           )}
         </>

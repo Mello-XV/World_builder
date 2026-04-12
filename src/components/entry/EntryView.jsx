@@ -12,9 +12,10 @@ import { RichText } from '../ui/RichText';
 import { renderFieldView } from '../fields/FieldRenderer';
 import { DynastyMembersView } from '../fields/DynastyMembersView';
 import { AffiliatedMembersView } from '../fields/AffiliatedMembersView';
+import { CommentsSection } from './CommentsSection';
 import { T, sTg } from '../../styles/theme';
 
-export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
+export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, projectId, userProfile }) {
   if (!entry) return <div>Introuvable.</div>;
 
   const cat = CATEGORIES[entry.category];
@@ -102,6 +103,9 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
             </div>
           );
         })}
+        {ownerUid && projectId && (
+          <CommentsSection ownerUid={ownerUid} projectId={projectId} entryId={entry.id} userProfile={userProfile} />
+        )}
       </>
     );
   }
@@ -372,7 +376,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
       {/* Astuce mention */}
       <div
         style={{
-          marginBottom: 40,
+          marginBottom: ownerUid && projectId ? 0 : 40,
           padding: '10px 14px',
           background: T.bgI,
           borderRadius: 6,
@@ -382,6 +386,11 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry }) {
       >
         💡 {'[[' + entry.name + ']]'}
       </div>
+
+      {/* Commentaires */}
+      {ownerUid && projectId && (
+        <CommentsSection ownerUid={ownerUid} projectId={projectId} entryId={entry.id} userProfile={userProfile} />
+      )}
     </>
   );
 }

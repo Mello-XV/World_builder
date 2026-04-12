@@ -1,11 +1,16 @@
 /**
  * ProfileScreen — page profil utilisateur (overlay plein écran).
  *
- * Permet de modifier le pseudo, l'email et le mot de passe.
- * Affiche les sections : Mes projets / Projets suivis / Demandes de suivi.
+ * Sections :
+ * - Pseudo (modifiable)
+ * - Email (modifiable avec confirmation de mot de passe)
+ * - Mot de passe (modifiable)
+ * - Mes projets (avec code de partage)
+ * - Demandes de suivi reçues (approuver / refuser)
+ * - Projets suivis (lecture seule, cliquables)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   updateEmail,
   updatePassword,
@@ -14,7 +19,12 @@ import {
   signOut,
 } from 'firebase/auth';
 import { auth } from '../lib/firebase';
-import { setUserProfile } from '../lib/firestore';
+import {
+  setUserProfile,
+  getOrCreateShareCode,
+  getFollowRequestsForOwner,
+  respondToFollowRequest,
+} from '../lib/firestore';
 import { T, sCard, sInp, sLbl, sBtnA, sBtn, sBs } from '../styles/theme';
 
 // ── Champ mot de passe avec icône visible/caché ───────────────────────────
@@ -33,11 +43,7 @@ function PasswordInput({ value, onChange, placeholder, style }) {
       <button
         type="button"
         onClick={() => setVisible(v => !v)}
-        style={{
-          position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: T.mu, fontSize: 14, padding: 0,
-        }}
+        style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: T.mu, fontSize: 14, padding: 0 }}
         title={visible ? 'Masquer' : 'Afficher'}
       >
         {visible ? '🙈' : '👁'}
@@ -61,7 +67,11 @@ function Section({ title, children }) {
 
 // ── Composant principal ───────────────────────────────────────────────────
 
-export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, projects, onProjectOpen }) {
+export function ProfileScreen({
+  user, userProfile, onClose, onProfileUpdate,
+  projects, followedProjects = [],
+  onProjectOpen, onFollowedProjectOpen,
+}) {
   const [displayName, setDisplayName] = useState(userProfile?.displayName || '');
   const [nameSaved, setNameSaved] = useState(false);
 
@@ -75,6 +85,21 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
   const [confirmPwd, setConfirmPwd] = useState('');
 
   const [msg, setMsg] = useState(null); // { type: 'success'|'error', text }
+
+  // Codes de partage par projet (état local)
+  const [shareCodes, setShareCodes] = useState({}); // { [projectId]: code | 'loading' }
+  const [copiedId, setCopiedId] = useState(null);
+
+  // Demandes de suivi reçues
+  const [followRequests, setFollowRequests] = useState([]);
+  const [requestsLoading, setRequestsLoading] = useState(true);
+
+  useEffect(() => {
+    getFollowRequestsForOwner(user.uid).then(reqs => {
+      setFollowRequests(reqs);
+      setRequestsLoading(false);
+    });
+  }, [user.uid]);
 
   const flash = (type, text) => {
     setMsg({ type, text });
@@ -132,16 +157,35 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
     }
   };
 
+  // ── Code de partage ─────────────────────────────────────────────────────
+
+  const handleGetShareCode = async (projectId) => {
+    setShareCodes(prev => ({ ...prev, [projectId]: 'loading' }));
+    const code = await getOrCreateShareCode(projectId);
+    setShareCodes(prev => ({ ...prev, [projectId]: code || 'Erreur' }));
+    if (code) {
+      navigator.clipboard?.writeText(code).catch(() => {});
+      setCopiedId(projectId);
+      setTimeout(() => setCopiedId(c => c === projectId ? null : c), 2500);
+    }
+  };
+
+  // ── Demandes de suivi ───────────────────────────────────────────────────
+
+  const handleRespond = async (req, approve) => {
+    await respondToFollowRequest(req.id, approve, req);
+    setFollowRequests(prev =>
+      prev.map(r => r.id === req.id ? { ...r, status: approve ? 'approved' : 'rejected' } : r)
+    );
+  };
+
+  const pendingRequests = followRequests.filter(r => r.status === 'pending');
+  const pastRequests = followRequests.filter(r => r.status !== 'pending');
+
   // ── Rendu ────────────────────────────────────────────────────────────────
 
   return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 500,
-        background: T.bg, overflowY: 'auto',
-        fontFamily: "'Cormorant Garamond', serif",
-      }}
-    >
+    <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: T.bg, overflowY: 'auto', fontFamily: "'Cormorant Garamond', serif" }}>
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '30px 20px 60px' }}>
 
         {/* Header */}
@@ -150,10 +194,7 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: T.ac, letterSpacing: 1.5, textTransform: 'uppercase', flex: 1 }}>
             Profil
           </h1>
-          <button
-            style={{ ...sBs, color: '#9b4d4d', borderColor: '#9b4d4d44' }}
-            onClick={() => signOut(auth)}
-          >
+          <button style={{ ...sBs, color: '#9b4d4d', borderColor: '#9b4d4d44' }} onClick={() => signOut(auth)}>
             🚪 Déconnexion
           </button>
         </div>
@@ -183,10 +224,7 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); }}
               />
             </div>
-            <button
-              style={{ ...sBtnA, padding: '8px 16px', minWidth: 80 }}
-              onClick={handleSaveName}
-            >
+            <button style={{ ...sBtnA, padding: '8px 16px', minWidth: 80 }} onClick={handleSaveName}>
               {nameSaved ? '✓ Sauvé' : 'Sauvegarder'}
             </button>
           </div>
@@ -203,21 +241,11 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
                 <label style={{ ...sLbl, color: T.mu }}>Nouvelle adresse e-mail</label>
-                <input
-                  style={sInp}
-                  type="email"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  autoFocus
-                />
+                <input style={sInp} type="email" value={email} onChange={e => setEmail(e.target.value)} autoFocus />
               </div>
               <div>
                 <label style={{ ...sLbl, color: T.mu }}>Mot de passe actuel (confirmation)</label>
-                <PasswordInput
-                  value={emailPassword}
-                  onChange={e => setEmailPassword(e.target.value)}
-                  placeholder="Mot de passe actuel"
-                />
+                <PasswordInput value={emailPassword} onChange={e => setEmailPassword(e.target.value)} placeholder="Mot de passe actuel" />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button style={{ ...sBtnA, padding: '7px 16px' }} onClick={handleSaveEmail}>Confirmer</button>
@@ -262,41 +290,128 @@ export function ProfileScreen({ user, userProfile, onClose, onProfileUpdate, pro
             <p style={{ color: T.mu, fontSize: 14 }}>Aucun projet créé.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {projects.map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => { onProjectOpen && onProjectOpen(p, null); onClose(); }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    padding: '8px 12px', background: T.bgI, borderRadius: 5,
-                    border: `1px solid ${T.bd}`,
-                    cursor: onProjectOpen ? 'pointer' : 'default',
-                    transition: 'border-color 0.15s',
-                  }}
-                  onMouseEnter={e => { if (onProjectOpen) e.currentTarget.style.borderColor = T.ac + '88'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.bd; }}
-                >
-                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}</span>
-                  {p.description && <span style={{ fontSize: 12, color: T.mu }}>{p.description}</span>}
-                  {onProjectOpen && <span style={{ fontSize: 12, color: T.dm }}>→</span>}
-                </div>
-              ))}
+              {projects.map(p => {
+                const code = shareCodes[p.id];
+                const copied = copiedId === p.id;
+                return (
+                  <div key={p.id} style={{ background: T.bgI, borderRadius: 5, border: `1px solid ${T.bd}`, overflow: 'hidden' }}>
+                    {/* Ligne projet */}
+                    <div
+                      onClick={() => { onProjectOpen && onProjectOpen(p, null); onClose(); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', cursor: onProjectOpen ? 'pointer' : 'default' }}
+                      onMouseEnter={e => { if (onProjectOpen) e.currentTarget.style.background = T.bgH; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                    >
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{p.name}</span>
+                      {p.description && <span style={{ fontSize: 12, color: T.mu }}>{p.description}</span>}
+                      {onProjectOpen && <span style={{ fontSize: 12, color: T.dm }}>→</span>}
+                    </div>
+                    {/* Ligne code de partage */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', borderTop: `1px solid ${T.bd}` }}>
+                      <span style={{ fontSize: 11, color: T.dm }}>Code de partage :</span>
+                      {!code ? (
+                        <button
+                          onClick={() => handleGetShareCode(p.id)}
+                          style={{ fontSize: 11, background: 'none', border: `1px solid ${T.bd}`, color: T.mu, borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontFamily: 'inherit' }}
+                        >
+                          Générer
+                        </button>
+                      ) : code === 'loading' ? (
+                        <span style={{ fontSize: 12, color: T.dm }}>…</span>
+                      ) : (
+                        <>
+                          <span style={{ fontFamily: 'monospace', fontSize: 14, fontWeight: 700, letterSpacing: 3, color: T.ac }}>{code}</span>
+                          <button
+                            onClick={() => handleGetShareCode(p.id)}
+                            style={{ fontSize: 11, background: 'none', border: `1px solid ${T.bd}`, color: copied ? '#8ec8a0' : T.mu, borderRadius: 3, padding: '2px 8px', cursor: 'pointer', fontFamily: 'inherit' }}
+                          >
+                            {copied ? '✓ Copié' : '📋 Copier'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Section>
 
-        {/* ── Projets suivis (à venir) ── */}
-        <Section title="Projets suivis">
-          <p style={{ color: T.dm, fontSize: 13, fontStyle: 'italic' }}>
-            Fonctionnalité à venir — vous pourrez visualiser les projets d'autres utilisateurs auxquels vous avez accès.
-          </p>
+        {/* ── Demandes de suivi reçues ── */}
+        <Section title={`Demandes de suivi${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ''}`}>
+          {requestsLoading ? (
+            <p style={{ color: T.dm, fontSize: 13 }}>Chargement…</p>
+          ) : followRequests.length === 0 ? (
+            <p style={{ color: T.dm, fontSize: 13, fontStyle: 'italic' }}>Aucune demande reçue.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingRequests.map(req => (
+                <div key={req.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bgI, borderRadius: 5, border: `1px solid ${T.ac}44` }}>
+                  <div style={{ flex: 1 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.tx }}>{req.fromDisplayName}</span>
+                    <span style={{ fontSize: 12, color: T.mu }}> veut accéder à </span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: T.ac }}>{req.projectName}</span>
+                  </div>
+                  <button
+                    onClick={() => handleRespond(req, true)}
+                    style={{ fontSize: 12, background: '#5a8f6e22', border: '1px solid #5a8f6e44', color: '#8ec8a0', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    ✓ Approuver
+                  </button>
+                  <button
+                    onClick={() => handleRespond(req, false)}
+                    style={{ fontSize: 12, background: '#9b4d4d22', border: '1px solid #9b4d4d44', color: '#e88', borderRadius: 3, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    ✕ Refuser
+                  </button>
+                </div>
+              ))}
+              {pastRequests.length > 0 && (
+                <details style={{ marginTop: 4 }}>
+                  <summary style={{ fontSize: 12, color: T.dm, cursor: 'pointer' }}>
+                    Historique ({pastRequests.length})
+                  </summary>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                    {pastRequests.map(req => (
+                      <div key={req.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: T.bgI, borderRadius: 4, border: `1px solid ${T.bd}` }}>
+                        <span style={{ flex: 1, fontSize: 12, color: T.mu }}>
+                          {req.fromDisplayName} → {req.projectName}
+                        </span>
+                        <span style={{ fontSize: 11, color: req.status === 'approved' ? '#8ec8a0' : '#e88' }}>
+                          {req.status === 'approved' ? '✓ Approuvé' : '✕ Refusé'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          )}
         </Section>
 
-        {/* ── Demandes de suivi (à venir) ── */}
-        <Section title="Demandes de suivi">
-          <p style={{ color: T.dm, fontSize: 13, fontStyle: 'italic' }}>
-            Fonctionnalité à venir — vous verrez ici les demandes d'accès à vos projets.
-          </p>
+        {/* ── Projets suivis ── */}
+        <Section title="Projets suivis">
+          {followedProjects.length === 0 ? (
+            <p style={{ color: T.dm, fontSize: 13, fontStyle: 'italic' }}>
+              Aucun projet suivi — utilise le bouton "🔗 Suivre un projet" sur l'écran d'accueil.
+            </p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {followedProjects.map(fp => (
+                <div
+                  key={fp.projectId}
+                  onClick={() => { onFollowedProjectOpen && onFollowedProjectOpen(fp.ownerUid, fp.projectId, fp.projectName); onClose(); }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: T.bgI, borderRadius: 5, border: `1px solid ${T.bd}`, cursor: 'pointer', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = T.mu; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.bd; }}
+                >
+                  <span style={{ flex: 1, fontSize: 14, fontWeight: 600 }}>{fp.projectName}</span>
+                  <span style={{ fontSize: 11, color: T.dm }}>👁 Lecture seule</span>
+                  <span style={{ fontSize: 12, color: T.dm }}>→</span>
+                </div>
+              ))}
+            </div>
+          )}
         </Section>
 
       </div>
