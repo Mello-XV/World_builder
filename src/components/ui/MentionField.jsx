@@ -246,52 +246,23 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     [mention.charCount, onChange],
   );
 
-  // ── Indentation de bloc (Tab / Shift+Tab) ────────────────────────────
+  // ── Indentation (Tab / Shift+Tab) ────────────────────────────────────
+  // Utilise les commandes natives du navigateur : fiables et réversibles.
 
-  const indentCurrentBlock = useCallback((increase) => {
-    const sel = window.getSelection();
-    if (!sel || !sel.rangeCount || !ref.current) return;
-
-    // Remonter depuis le nœud ancre jusqu'au fils direct du contenteditable.
-    const findDirectChild = () => {
-      const s = window.getSelection();
-      if (!s || !s.rangeCount) return null;
-      let n = s.getRangeAt(0).startContainer;
-      if (n.nodeType === 3) n = n.parentNode;
-      while (n && n !== ref.current && n.parentNode !== ref.current) {
-        n = n.parentNode;
-      }
-      return (n && n !== ref.current) ? n : null;
-    };
-
-    let node = findDirectChild();
-
-    if (!node) {
-      // Shift+Tab sans bloc → rien à désindenter
-      if (!increase) return;
-      // Tab sans bloc → on crée un wrapper div d'abord
-      document.execCommand('formatBlock', false, 'div');
-      node = findDirectChild();
-      if (!node) return;
-    }
-
-    const STEP = 32; // px par niveau d'indentation
-    const current = parseInt(node.style.paddingLeft, 10) || 0;
-    // Shift+Tab sur un bloc déjà à 0 → rien à faire
-    if (!increase && current === 0) return;
-    const next = increase ? current + STEP : Math.max(0, current - STEP);
-    node.style.paddingLeft = next > 0 ? `${next}px` : '';
-    onChange(ref.current.innerHTML);
+  const handleIndent = useCallback((increase) => {
+    ref.current?.focus();
+    document.execCommand(increase ? 'indent' : 'outdent', false, null);
+    onChange(ref.current?.innerHTML || '');
   }, [onChange]);
 
   // ── Gestion du clavier ────────────────────────────────────────────────
 
   const handleKeyDown = useCallback(
     ev => {
-      // Tab → indenter le bloc entier (Shift+Tab → désindenter)
+      // Tab → indenter (Shift+Tab → désindenter)
       if (ev.key === 'Tab' && multiline) {
         ev.preventDefault();
-        indentCurrentBlock(!ev.shiftKey);
+        handleIndent(!ev.shiftKey);
         return;
       }
 
@@ -317,7 +288,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         setMention({ active: false, query: '', charCount: 0 });
       }
     },
-    [mention, filtered, selectedIndex, insertMention, multiline, applyFormat, indentCurrentBlock],
+    [mention, filtered, selectedIndex, insertMention, multiline, applyFormat, handleIndent],
   );
 
   // ── Rendu mode simple (input) ─────────────────────────────────────────

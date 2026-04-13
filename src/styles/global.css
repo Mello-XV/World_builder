@@ -53,6 +53,13 @@ select:focus {
   outline: none;
 }
 
+/* Indentation dans les champs contenteditable (Tab / Shift+Tab) */
+[contenteditable] blockquote {
+  margin: 0 0 0 40px;
+  padding: 0;
+  border: none;
+}
+
 /* Conteneur principal */
 #root {
   max-width: 1000px;
