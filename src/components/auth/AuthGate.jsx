@@ -20,6 +20,8 @@ export function AuthGate({ children }) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async u => {
@@ -193,10 +195,52 @@ export function AuthGate({ children }) {
           <input style={{ ...sInp, marginBottom: 12, fontSize: 16 }} type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={handleKeyDown} placeholder="Email" autoFocus />
 
           {screen !== 'reset' && (
-            <input style={{ ...sInp, marginBottom: 12, fontSize: 16 }} type="password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={handleKeyDown} placeholder="Mot de passe" />
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <input
+                style={{ ...sInp, fontSize: 16, paddingRight: 36 }}
+                type={showPwd ? 'text' : 'password'}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Mot de passe"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPwd(v => !v)}
+                style={{
+                  position: 'absolute', right: 10, top: '50%',
+                  transform: 'translateY(-50%)', background: 'none',
+                  border: 'none', cursor: 'pointer', color: T.mu,
+                  fontSize: 16, padding: 0, lineHeight: 1,
+                }}
+              >
+                {showPwd ? '🙈' : '👁'}
+              </button>
+            </div>
           )}
           {screen === 'signup' && (
-            <input style={{ ...sInp, marginBottom: 12, fontSize: 16 }} type="password" value={confirm} onChange={e => setConfirm(e.target.value)} onKeyDown={handleKeyDown} placeholder="Confirmer" />
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <input
+                style={{ ...sInp, fontSize: 16, paddingRight: 36 }}
+                type={showConfirm ? 'text' : 'password'}
+                value={confirm}
+                onChange={e => setConfirm(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Confirmer"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirm(v => !v)}
+                style={{
+                  position: 'absolute', right: 10, top: '50%',
+                  transform: 'translateY(-50%)', background: 'none',
+                  border: 'none', cursor: 'pointer', color: T.mu,
+                  fontSize: 16, padding: 0, lineHeight: 1,
+                }}
+              >
+                {showConfirm ? '🙈' : '👁'}
+              </button>
+            </div>
           )}
 
           {screen === 'signup' && (

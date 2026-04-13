@@ -252,14 +252,13 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     const sel = window.getSelection();
     if (!sel || !sel.rangeCount || !ref.current) return;
 
-    // Remonter jusqu'au fils direct du contenteditable,
-    // sans jamais dépasser ref.current lui-même.
+    // Remonter depuis le nœud ancre jusqu'au fils direct du contenteditable.
     const findDirectChild = () => {
       const s = window.getSelection();
       if (!s || !s.rangeCount) return null;
-      let n = s.getRangeAt(0).commonAncestorContainer;
+      let n = s.getRangeAt(0).startContainer;
       if (n.nodeType === 3) n = n.parentNode;
-      while (n && n !== ref.current && n.parentNode && n.parentNode !== ref.current) {
+      while (n && n !== ref.current && n.parentNode !== ref.current) {
         n = n.parentNode;
       }
       return (n && n !== ref.current) ? n : null;
@@ -267,9 +266,10 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
 
     let node = findDirectChild();
 
-    // Si le texte est directement dans le contenteditable (pas dans un bloc),
-    // on l'enveloppe dans un <div> avant d'appliquer l'indentation.
     if (!node) {
+      // Shift+Tab sans bloc → rien à désindenter
+      if (!increase) return;
+      // Tab sans bloc → on crée un wrapper div d'abord
       document.execCommand('formatBlock', false, 'div');
       node = findDirectChild();
       if (!node) return;
@@ -277,6 +277,8 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
 
     const STEP = 32; // px par niveau d'indentation
     const current = parseInt(node.style.paddingLeft, 10) || 0;
+    // Shift+Tab sur un bloc déjà à 0 → rien à faire
+    if (!increase && current === 0) return;
     const next = increase ? current + STEP : Math.max(0, current - STEP);
     node.style.paddingLeft = next > 0 ? `${next}px` : '';
     onChange(ref.current.innerHTML);
