@@ -9,6 +9,13 @@
 import { CATEGORIES } from '../../constants/categories';
 import { T, sInp, sBtn, sBtnA, sBs, hov } from '../../styles/theme';
 
+// Extrait le texte brut depuis une description qui peut contenir du HTML
+function plainText(str, maxLen = 60) {
+  if (!str) return '';
+  const text = str.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return text.length > maxLen ? text.slice(0, maxLen) + '…' : text;
+}
+
 export function EntryList({ category, entries, onNav, onNew, onDelete, onBack, search, onSearch }) {
   const cat = CATEGORIES[category];
 
@@ -212,7 +219,7 @@ export function EntryList({ category, entries, onNav, onNew, onDelete, onBack, s
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 15 }}>{e.name}</div>
                     {e.description && (
-                      <div style={{ fontSize: 12, color: T.mu }}>{e.description.slice(0, 60)}</div>
+                      <div style={{ fontSize: 12, color: T.mu }}>{plainText(e.description)}</div>
                     )}
                   </div>
                 </div>
