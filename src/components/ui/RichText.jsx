@@ -1,193 +1,23 @@
 /**
  * RichText — rendu visuel du texte enrichi.
  *
- * Deux modes selon le contenu stocké :
- *
- * Mode HTML (contenteditable) :
- *   - Détecté automatiquement si le texte contient des balises HTML
- *   - Gère <b>, <strong>, <i>, <em>, <u>, <br>, <table>, <tr>, <th>, <td>
- *   - Traite les mentions [[Nom]] dans les nœuds texte
- *
- * Mode Markdown (legacy / champs simples) :
- *   - **gras**, *italique*, __souligné__ (inline)
- *   - Liens wiki [[Nom]] → cliquables
- *   - Images ![alt](url)
- *   - Tableaux col1|col2 (lignes avec pipe)
- *   - Paragraphes normaux avec indentation préservée
+ * Supporte :
+ * - **gras**, *italique*, __souligné__ (inline)
+ * - Liens wiki [[Nom du personnage]] → cliquables
+ * - Images ![alt](url)
+ * - Tableaux (colonnes séparées par |, collés depuis Excel)
+ * - Paragraphes normaux avec indentation (espaces préservés)
  */
 
 import { CATEGORIES } from '../../constants/categories';
 import { T } from '../../styles/theme';
 
-// ── Détection du mode HTML ────────────────────────────────────────────────
-
-function isHtml(text) {
-  return /<[biusp][\s/>]|<strong|<em\b|<table|<br|<div/i.test(text);
-}
-
-// ── Mode HTML : conversion DOM → React ───────────────────────────────────
-
-const SAFE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'p', 'div', 'span']);
-
 /**
- * Traite le texte brut pour les mentions [[nom]] et renvoie des éléments React.
+ * Applique le formatage inline sur un texte brut (sans [[...]] ni balises).
+ * Gère **gras**, *italique*, __souligné__.
  */
-function mentionText(text, entries, onNav, key) {
-  const segments = text.split(/(\[\[[^\]]+\]\])/g);
-  return segments.flatMap((part, si) => {
-    const m = part.match(/^\[\[(?:(\d+):)?(.+)\]\]$/);
-    if (m) {
-      const [, idStr, name] = m;
-      let targetId = idStr ? parseInt(idStr) : null;
-      if (!targetId) {
-        const found = Object.values(entries).find(e => e.name.toLowerCase() === name.toLowerCase());
-        if (found) targetId = found.id;
-      }
-      if (targetId && entries[targetId]) {
-        const cat = CATEGORIES[entries[targetId].category];
-        return (
-          <span
-            key={`${key}-m${si}`}
-            onClick={() => onNav(targetId)}
-            style={{ color: cat?.color || T.ac, cursor: 'pointer', borderBottom: `1px dotted ${cat?.color || T.ac}`, fontWeight: 600 }}
-          >
-            {name}
-          </span>
-        );
-      }
-      return <span key={`${key}-m${si}`} style={{ color: '#665544', fontStyle: 'italic' }}>{name} ⚠</span>;
-    }
-    return part; // texte brut
-  });
-}
-
-/**
- * Convertit un nœud DOM en éléments React (récursif).
- * Seules les balises de SAFE_TAGS sont conservées ; les autres sont aplaties en texte.
- */
-function domToReact(node, entries, onNav, key) {
-  // Nœud texte
-  if (node.nodeType === Node.TEXT_NODE) {
-    const t = node.textContent;
-    if (!t) return null;
-    return mentionText(t, entries, onNav, key);
-  }
-
-  if (node.nodeType !== Node.ELEMENT_NODE) return null;
-
-  const tag = node.tagName.toLowerCase();
-  const children = Array.from(node.childNodes).flatMap((child, i) => {
-    const result = domToReact(child, entries, onNav, `${key}-${i}`);
-    return Array.isArray(result) ? result : result !== null ? [result] : [];
-  });
-
-  // Extraire les styles inline de l'élément (contenteditable en génère)
-  const inlineStyle = {};
-  if (node.style?.fontWeight === 'bold' || node.style?.fontWeight === '700') inlineStyle.fontWeight = 'bold';
-  if (node.style?.fontStyle === 'italic') inlineStyle.fontStyle = 'italic';
-  if (node.style?.textDecoration?.includes('underline')) inlineStyle.textDecoration = 'underline';
-
-  if (!SAFE_TAGS.has(tag)) {
-    // Tag non-sûr : on aplatit le contenu
-    return children.length ? children : null;
-  }
-
-  switch (tag) {
-    case 'br':
-      return <br key={key} />;
-
-    case 'b':
-    case 'strong':
-      return <strong key={key}>{children}</strong>;
-
-    case 'i':
-    case 'em':
-      return <em key={key}>{children}</em>;
-
-    case 'u':
-      return <u key={key}>{children}</u>;
-
-    case 'table':
-      return (
-        <div key={key} style={{ overflowX: 'auto', margin: '8px 0' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            {children}
-          </table>
-        </div>
-      );
-
-    case 'thead':
-      return <thead key={key}>{children}</thead>;
-
-    case 'tbody':
-      return <tbody key={key}>{children}</tbody>;
-
-    case 'tr':
-      return <tr key={key} style={{ borderBottom: `1px solid ${T.bd}` }}>{children}</tr>;
-
-    case 'th':
-      return (
-        <th
-          key={key}
-          style={{
-            padding: '6px 10px',
-            textAlign: 'left',
-            fontWeight: 700,
-            color: T.ac,
-            background: T.bd + '66',
-            border: `1px solid ${T.bd}`,
-          }}
-        >
-          {children}
-        </th>
-      );
-
-    case 'td':
-      return (
-        <td
-          key={key}
-          style={{ padding: '6px 10px', textAlign: 'left', border: `1px solid ${T.bd}` }}
-        >
-          {children}
-        </td>
-      );
-
-    case 'p':
-    case 'div':
-      // Paragraphe : si vide ou juste un <br>, émettre un espace vide
-      if (children.length === 0 || (children.length === 1 && children[0]?.type === 'br')) {
-        return <div key={key} style={{ height: 8 }} />;
-      }
-      return (
-        <p key={key} style={{ margin: '4px 0', lineHeight: 1.7, textAlign: 'justify', ...inlineStyle }}>
-          {children}
-        </p>
-      );
-
-    case 'span':
-      return <span key={key} style={inlineStyle}>{children}</span>;
-
-    default:
-      return children.length ? <span key={key}>{children}</span> : null;
-  }
-}
-
-/**
- * Rendu HTML : parse la chaîne HTML avec DOMParser et convertit en React.
- */
-function RichTextHtml({ text, entries, onNav }) {
-  const doc = new DOMParser().parseFromString(text, 'text/html');
-  const body = doc.body;
-  const elements = Array.from(body.childNodes).flatMap((node, i) => {
-    const result = domToReact(node, entries, onNav, `html-${i}`);
-    return Array.isArray(result) ? result : result !== null ? [result] : [];
-  });
-  return <>{elements}</>;
-}
-
-// ── Mode Markdown (legacy) ────────────────────────────────────────────────
-
 function applyInlineFormat(text, baseKey) {
+  // Regex qui capture **gras**, *italique*, __souligné__
   const regex = /(\*\*[^*\n]+?\*\*|\*[^*\n]+?\*|__[^_\n]+?__)/g;
   const parts = [];
   let last = 0;
@@ -195,7 +25,9 @@ function applyInlineFormat(text, baseKey) {
   let idx = 0;
 
   while ((match = regex.exec(text)) !== null) {
-    if (match.index > last) parts.push(text.slice(last, match.index));
+    if (match.index > last) {
+      parts.push(text.slice(last, match.index));
+    }
     const m = match[0];
     if (m.startsWith('**')) {
       parts.push(<strong key={`${baseKey}-fmt-${idx++}`}>{m.slice(2, -2)}</strong>);
@@ -207,56 +39,71 @@ function applyInlineFormat(text, baseKey) {
     last = match.index + m.length;
   }
 
-  if (last < text.length) parts.push(text.slice(last));
+  if (last < text.length) {
+    parts.push(text.slice(last));
+  }
+
   return parts.length ? parts : [text];
 }
 
+/**
+ * Transforme une ligne de texte en éléments React.
+ * Gère les mentions [[nom]] et le formatage **gras** / *italique* / __souligné__.
+ */
 function renderInline(text, entries, onNav, lineKey) {
+  // 1. Découper sur les mentions [[...]]
   const segments = text.split(/(\[\[[^\]]+\]\])/g);
+
   return segments.flatMap((part, segIdx) => {
     const match = part.match(/^\[\[(?:(\d+):)?(.+)\]\]$/);
+
     if (match) {
+      // C'est une mention [[nom]] ou [[id:nom]]
       const [, idStr, name] = match;
       let targetId = idStr ? parseInt(idStr) : null;
+
       if (!targetId) {
-        const found = Object.values(entries).find(e => e.name.toLowerCase() === name.toLowerCase());
+        const found = Object.values(entries).find(
+          e => e.name.toLowerCase() === name.toLowerCase(),
+        );
         if (found) targetId = found.id;
       }
+
       if (targetId && entries[targetId]) {
         const cat = CATEGORIES[entries[targetId].category];
         return (
           <span
             key={`${lineKey}-seg-${segIdx}`}
             onClick={() => onNav(targetId)}
-            style={{ color: cat?.color || T.ac, cursor: 'pointer', borderBottom: `1px dotted ${cat?.color || T.ac}`, fontWeight: 600 }}
+            style={{
+              color: cat?.color || T.ac,
+              cursor: 'pointer',
+              borderBottom: `1px dotted ${cat?.color || T.ac}`,
+              fontWeight: 600,
+            }}
           >
             {name}
           </span>
         );
       }
+
       return (
         <span key={`${lineKey}-seg-${segIdx}`} style={{ color: '#665544', fontStyle: 'italic' }}>
           {name} ⚠
         </span>
       );
     }
+
+    // Texte normal : appliquer le formatage inline
     return applyInlineFormat(part, `${lineKey}-seg-${segIdx}`).map((el, fi) =>
       typeof el === 'string' ? el : <span key={`${lineKey}-seg-${segIdx}-fi-${fi}`}>{el}</span>,
     );
   });
 }
 
-// ── Composant principal ───────────────────────────────────────────────────
-
 export function RichText({ text, entries, onNav }) {
   if (!text) return null;
 
-  // Mode HTML (contenu issu du contenteditable)
-  if (isHtml(text)) {
-    return <RichTextHtml text={text} entries={entries} onNav={onNav} />;
-  }
-
-  // Mode Markdown (champs texte simples, legacy)
   const lines = text.split('\n');
   const elements = [];
   let tableBuffer = [];
@@ -264,7 +111,10 @@ export function RichText({ text, entries, onNav }) {
   const flushTable = () => {
     if (!tableBuffer.length) return;
     const rows = tableBuffer.map(l =>
-      l.split('|').map(c => c.trim()).filter(Boolean),
+      l
+        .split('|')
+        .map(c => c.trim())
+        .filter(Boolean),
     );
     elements.push(
       <div key={elements.length} style={{ overflowX: 'auto', margin: '8px 0' }}>
@@ -303,17 +153,24 @@ export function RichText({ text, entries, onNav }) {
     const raw = lines[i];
     const line = raw.trim();
 
+    // Image markdown ![alt](url)
     const imgMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
     if (imgMatch) {
       flushTable();
       elements.push(
-        <img key={elements.length} src={imgMatch[2]} alt={imgMatch[1]} style={{ maxWidth: '100%', borderRadius: 6, margin: '8px 0' }} />,
+        <img
+          key={elements.length}
+          src={imgMatch[2]}
+          alt={imgMatch[1]}
+          style={{ maxWidth: '100%', borderRadius: 6, margin: '8px 0' }}
+        />,
       );
       continue;
     }
 
+    // Ligne de tableau (contient | et n'est pas une image)
     if (line.includes('|') && !line.startsWith('!')) {
-      if (/^\|?[\s\-:|]+\|?$/.test(line)) continue;
+      if (/^\|?[\s\-:|]+\|?$/.test(line)) continue; // séparateur markdown, ignoré
       tableBuffer.push(line);
       continue;
     }
@@ -325,9 +182,18 @@ export function RichText({ text, entries, onNav }) {
       continue;
     }
 
+    // Ligne normale : préserver l'indentation (espaces en début)
     const indent = raw.length - raw.trimStart().length;
     elements.push(
-      <p key={elements.length} style={{ margin: '4px 0', lineHeight: 1.7, textAlign: 'justify', paddingLeft: indent > 0 ? `${indent * 0.6}em` : 0 }}>
+      <p
+        key={elements.length}
+        style={{
+          margin: '4px 0',
+          lineHeight: 1.7,
+          textAlign: 'justify',
+          paddingLeft: indent > 0 ? `${indent * 0.6}em` : 0,
+        }}
+      >
         {renderInline(line, entries, onNav, `line-${i}`)}
       </p>,
     );
