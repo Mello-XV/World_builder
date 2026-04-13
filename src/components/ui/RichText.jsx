@@ -16,6 +16,7 @@
  *   - Paragraphes normaux avec indentation préservée
  */
 
+import { useRef, useState } from 'react';
 import { CATEGORIES } from '../../constants/categories';
 import { T } from '../../styles/theme';
 
@@ -28,6 +29,118 @@ function isHtml(text) {
 // ── Mode HTML : conversion DOM → React ───────────────────────────────────
 
 const SAFE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'p', 'div', 'span']);
+
+// ── Tableau redimensionnable ──────────────────────────────────────────────
+
+function ResizableTable({ headers, rows }) {
+  const [widths, setWidths] = useState(null);
+  const tableRef = useRef(null);
+  const dragRef = useRef(null);
+
+  const startResize = (colIdx, e) => {
+    e.preventDefault();
+    const ths = tableRef.current?.querySelectorAll('th');
+    const startWidths = widths || (ths ? Array.from(ths).map(th => th.getBoundingClientRect().width) : null);
+    if (!startWidths) return;
+
+    dragRef.current = { colIdx, startX: e.clientX, startWidths: [...startWidths] };
+    if (!widths) setWidths([...startWidths]);
+
+    const onMove = ev => {
+      if (!dragRef.current) return;
+      const { colIdx: ci, startX, startWidths: sw } = dragRef.current;
+      const delta = ev.clientX - startX;
+      setWidths(prev => {
+        const base = prev || sw;
+        const next = [...base];
+        next[ci] = Math.max(40, sw[ci] + delta);
+        return next;
+      });
+    };
+
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const thStyle = {
+    padding: '6px 10px',
+    textAlign: 'left',
+    fontWeight: 700,
+    color: T.ac,
+    background: T.bd + '66',
+    border: `1px solid ${T.bd}`,
+    position: 'relative',
+    userSelect: 'none',
+    overflow: 'hidden',
+  };
+
+  const tdStyle = {
+    padding: '6px 10px',
+    textAlign: 'left',
+    border: `1px solid ${T.bd}`,
+  };
+
+  return (
+    <div style={{ overflowX: 'auto', margin: '8px 0' }}>
+      <table
+        ref={tableRef}
+        style={{
+          borderCollapse: 'collapse',
+          fontSize: 14,
+          tableLayout: widths ? 'fixed' : 'auto',
+          width: widths ? widths.reduce((a, b) => a + b, 0) + 'px' : '100%',
+        }}
+      >
+        {widths && (
+          <colgroup>
+            {widths.map((w, i) => <col key={i} style={{ width: w + 'px' }} />)}
+          </colgroup>
+        )}
+        {headers && headers.length > 0 && (
+          <thead>
+            <tr style={{ borderBottom: `1px solid ${T.bd}` }}>
+              {headers.map((cell, ci) => (
+                <th key={ci} style={thStyle}>
+                  {cell}
+                  {ci < headers.length - 1 && (
+                    <span
+                      onMouseDown={e => startResize(ci, e)}
+                      title="Glisser pour redimensionner"
+                      style={{
+                        position: 'absolute',
+                        right: 0,
+                        top: 0,
+                        width: 6,
+                        height: '100%',
+                        cursor: 'col-resize',
+                        zIndex: 1,
+                      }}
+                    />
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+        )}
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri} style={{ borderBottom: `1px solid ${T.bd}` }}>
+              {row.map((cell, ci) => (
+                <td key={ci} style={tdStyle}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 /**
  * Traite le texte brut pour les mentions [[nom]] et renvoie des éléments React.
@@ -107,50 +220,37 @@ function domToReact(node, entries, onNav, key) {
     case 'u':
       return <u key={key}>{children}</u>;
 
-    case 'table':
-      return (
-        <div key={key} style={{ overflowX: 'auto', margin: '8px 0' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            {children}
-          </table>
-        </div>
-      );
+    case 'table': {
+      const trs = Array.from(node.querySelectorAll('tr'));
+      let headers = null;
+      const dataRows = [];
+
+      trs.forEach((tr, ri) => {
+        const cells = Array.from(tr.childNodes).filter(n => n.nodeType === Node.ELEMENT_NODE);
+        const cellContents = cells.map((cell, ci) =>
+          Array.from(cell.childNodes).flatMap((child, cii) => {
+            const result = domToReact(child, entries, onNav, `${key}-r${ri}-c${ci}-${cii}`);
+            return Array.isArray(result) ? result : result !== null ? [result] : [];
+          }),
+        );
+        const isHeaderRow = ri === 0 && cells.every(c => c.tagName?.toLowerCase() === 'th');
+        if (isHeaderRow) {
+          headers = cellContents;
+        } else {
+          dataRows.push(cellContents);
+        }
+      });
+
+      return <ResizableTable key={key} headers={headers} rows={dataRows} />;
+    }
 
     case 'thead':
-      return <thead key={key}>{children}</thead>;
-
     case 'tbody':
-      return <tbody key={key}>{children}</tbody>;
-
     case 'tr':
-      return <tr key={key} style={{ borderBottom: `1px solid ${T.bd}` }}>{children}</tr>;
-
     case 'th':
-      return (
-        <th
-          key={key}
-          style={{
-            padding: '6px 10px',
-            textAlign: 'left',
-            fontWeight: 700,
-            color: T.ac,
-            background: T.bd + '66',
-            border: `1px solid ${T.bd}`,
-          }}
-        >
-          {children}
-        </th>
-      );
-
     case 'td':
-      return (
-        <td
-          key={key}
-          style={{ padding: '6px 10px', textAlign: 'left', border: `1px solid ${T.bd}` }}
-        >
-          {children}
-        </td>
-      );
+      // Handled inside ResizableTable; flatten content if encountered outside a table context
+      return children.length ? <span key={key}>{children}</span> : null;
 
     case 'p':
     case 'div':
@@ -263,39 +363,19 @@ export function RichText({ text, entries, onNav }) {
 
   const flushTable = () => {
     if (!tableBuffer.length) return;
-    const rows = tableBuffer.map(l =>
+    const allRows = tableBuffer.map(l =>
       l.split('|').map(c => c.trim()).filter(Boolean),
     );
-    elements.push(
-      <div key={elements.length} style={{ overflowX: 'auto', margin: '8px 0' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-          <tbody>
-            {rows.map((row, ri) => (
-              <tr key={ri} style={{ borderBottom: `1px solid ${T.bd}` }}>
-                {row.map((cell, ci) => {
-                  const Tag = ri === 0 ? 'th' : 'td';
-                  return (
-                    <Tag
-                      key={ci}
-                      style={{
-                        padding: '6px 10px',
-                        textAlign: 'left',
-                        fontWeight: ri === 0 ? 700 : 400,
-                        color: ri === 0 ? T.ac : T.tx,
-                        background: ri === 0 ? T.bd + '66' : 'transparent',
-                        border: `1px solid ${T.bd}`,
-                      }}
-                    >
-                      {renderInline(cell, entries, onNav, `tbl-${ri}-${ci}`)}
-                    </Tag>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>,
+    const tblKey = elements.length;
+    const headers = allRows[0].map((cell, ci) =>
+      renderInline(cell, entries, onNav, `tbl-${tblKey}-h-${ci}`),
     );
+    const dataRows = allRows.slice(1).map((row, ri) =>
+      row.map((cell, ci) =>
+        renderInline(cell, entries, onNav, `tbl-${tblKey}-${ri + 1}-${ci}`),
+      ),
+    );
+    elements.push(<ResizableTable key={tblKey} headers={headers} rows={dataRows} />);
     tableBuffer = [];
   };
 
