@@ -50,62 +50,6 @@ function deleteCharsBefore(n) {
   }
 }
 
-// ── Nettoyage HTML collé : ne conserve que gras, italique, souligné ─────────
-// Parcourt le DOM parsé et reconstruit un HTML propre : supprime classes,
-// styles, attributs Word/Office, mais préserve <b>, <i>, <u> et leurs
-// équivalents sémantiques ou en style inline.
-
-function cleanPasteHtml(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-
-  function walk(node) {
-    // Nœud texte → échapper et retourner
-    if (node.nodeType === Node.TEXT_NODE) {
-      return node.textContent
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-    }
-    if (node.nodeType !== Node.ELEMENT_NODE) return '';
-
-    const tag = node.tagName.toLowerCase();
-    // Ignorer les éléments non-contenus (styles, scripts, commentaires Word)
-    if (['style', 'script', 'head', 'meta', 'link'].includes(tag)) return '';
-
-    // Traiter les enfants en premier
-    const children = Array.from(node.childNodes).map(walk).join('');
-
-    // Saut de ligne
-    if (tag === 'br') return '<br>';
-
-    // Ignorer les nœuds vides après nettoyage
-    if (!children.trim()) return '';
-
-    // Détecter le formatage depuis le tag OU le style inline
-    const s = node.style || {};
-    const fw = (s.fontWeight || '').toLowerCase();
-    const td = (s.textDecoration || '').toLowerCase();
-
-    const bold      = ['b', 'strong'].includes(tag) || fw === 'bold' || parseInt(fw) >= 600;
-    const italic    = ['i', 'em'].includes(tag) || s.fontStyle === 'italic';
-    const underline = tag === 'u' || td.includes('underline');
-
-    // Appliquer le formatage (de l'intérieur vers l'extérieur)
-    let out = children;
-    if (underline) out = `<u>${out}</u>`;
-    if (italic)    out = `<i>${out}</i>`;
-    if (bold)      out = `<b>${out}</b>`;
-
-    // Éléments de bloc → paragraphe
-    const isBlock = ['p', 'div', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'].includes(tag);
-    if (isBlock) return `<p style="margin:4px 0;line-height:1.7">${out}</p>`;
-
-    return out;
-  }
-
-  return Array.from(doc.body.childNodes).map(walk).join('');
-}
-
 // ── Conversion TSV → table HTML ───────────────────────────────────────────
 
 function tsvToHtmlTable(tsv) {
@@ -247,27 +191,21 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         return;
       }
 
-      // Texte ordinaire : si du HTML est disponible, on le nettoie en conservant
-      // uniquement gras/italique/souligné. Sinon on insère le texte brut.
-      if (htmlClip) {
-        const cleaned = cleanPasteHtml(htmlClip);
-        document.execCommand('insertHTML', false, cleaned || plain);
-      } else {
-        const htmlContent = plain
-          .split(/\r?\n/)
-          .map(line => {
-            const text = line.trim();
-            if (!text) return '';
-            const escaped = text
-              .replace(/&/g, '&amp;')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;');
-            return `<p style="margin:4px 0;line-height:1.7">${escaped}</p>`;
-          })
-          .filter(Boolean)
-          .join('');
-        document.execCommand('insertHTML', false, htmlContent || plain);
-      }
+      // Texte ordinaire : chaque ligne non-vide devient un <p>.
+      const htmlContent = plain
+        .split(/\r?\n/)
+        .map(line => {
+          const text = line.trim();
+          if (!text) return '';
+          const escaped = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          return `<p style="margin:4px 0;line-height:1.7">${escaped}</p>`;
+        })
+        .filter(Boolean)
+        .join('');
+      document.execCommand('insertHTML', false, htmlContent || plain);
       onChange(ref.current?.innerHTML || '');
     },
     [multiline, onChange],
