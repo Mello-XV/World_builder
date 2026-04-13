@@ -4,14 +4,34 @@
  * Contient :
  * - Bouton retour vers la liste des projets
  * - Nom du projet (cliquable pour le renommer)
- * - Bouton profil (pseudo de l'utilisateur)
+ * - Barre de recherche inline avec dropdown de résultats
  * - Bouton export PDF
- * - Recherche
+ * - Bouton profil
  */
 
-import { T, sBs, sBtn } from '../../styles/theme';
+import { useRef } from 'react';
+import { CATEGORIES } from '../../constants/categories';
+import { T, sBs, sBtn, sInp } from '../../styles/theme';
 
-export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExportPdf, onProfile, userProfile }) {
+export function AppHeader({
+  project,
+  onGoProjects,
+  onEditName,
+  onExportPdf,
+  onProfile,
+  userProfile,
+  searchQuery,
+  onSearchChange,
+  searchResults,
+  onNav,
+}) {
+  const inputRef = useRef(null);
+
+  const handleSelect = id => {
+    onNav(id);
+    onSearchChange('');
+  };
+
   return (
     <div
       style={{
@@ -19,13 +39,12 @@ export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExpor
         borderBottom: `1px solid ${T.bd}`,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
         gap: 12,
+        flexWrap: 'wrap',
       }}
     >
       {/* Gauche : bouton globe + nom du projet */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
         <button style={{ ...sBs, padding: '4px 10px' }} onClick={onGoProjects}>
           🌍
         </button>
@@ -46,15 +65,73 @@ export function AppHeader({ project, onGoProjects, onEditName, onSearch, onExpor
         </div>
       </div>
 
+      {/* Centre : barre de recherche */}
+      <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
+        <input
+          ref={inputRef}
+          value={searchQuery}
+          onChange={e => onSearchChange(e.target.value)}
+          placeholder="Rechercher une fiche…"
+          style={{
+            ...sInp,
+            width: '100%',
+            fontSize: 14,
+            padding: '6px 12px',
+          }}
+        />
+
+        {/* Dropdown résultats */}
+        {searchResults?.length > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              zIndex: 200,
+              background: T.bgC,
+              border: `1px solid ${T.bd}`,
+              borderRadius: 6,
+              marginTop: 4,
+              maxHeight: 320,
+              overflowY: 'auto',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
+            }}
+          >
+            {searchResults.map(entry => {
+              const cat = CATEGORIES[entry.category];
+              return (
+                <div
+                  key={entry.id}
+                  onMouseDown={() => handleSelect(entry.id)}
+                  style={{
+                    padding: '8px 14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    borderBottom: `1px solid ${T.bd}`,
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.background = T.bgH)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{ fontSize: 16 }}>{cat?.icon}</span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: T.tx }}>{entry.name}</div>
+                    <div style={{ fontSize: 11, color: T.mu }}>{cat?.label}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {/* Droite : actions */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
         <button style={sBs} onClick={onExportPdf} title="Exporter en PDF">
           📄
         </button>
-        <button style={sBtn} onClick={onSearch} title="Rechercher (Ctrl+K)">
-          🔍
-        </button>
-        {/* Bouton profil — affiche le pseudo */}
         <button
           onClick={onProfile}
           title="Mon profil"

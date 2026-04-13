@@ -12,7 +12,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { saveProject, saveProjectData } from '../lib/firestore';
 import { AppHeader } from '../components/layout/AppHeader';
-import { SearchOverlay } from '../components/layout/SearchOverlay';
 import { Toast } from '../components/layout/Toast';
 import { DeleteEntryModal } from '../components/modals/DeleteEntryModal';
 import { EditProjectNameModal } from '../components/modals/EditProjectNameModal';
@@ -32,7 +31,6 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
   const [curId, setCurId] = useState(null);
   const [mode, setMode] = useState('visual');
   const [listSearch, setListSearch] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
   const [delEntry, setDelEntry] = useState(null);
@@ -58,8 +56,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
 
   useEffect(() => {
     const handler = e => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(true); }
-      if (e.key === 'Escape') { setSearchOpen(false); setEditProjName(null); }
+      if (e.key === 'Escape') setEditProjName(null);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
@@ -71,7 +68,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
 
   const nav = useCallback(id => {
     setCurId(id); setView('entry'); setMode('visual');
-    setSearchOpen(false); setSearchQuery('');
+    setSearchQuery('');
   }, []);
 
   const searchResults = searchQuery.trim()
@@ -131,10 +128,13 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
         project={project}
         onGoProjects={onGoProjects}
         onEditName={name => setEditProjName(name)}
-        onSearch={() => setSearchOpen(true)}
         onExportPdf={() => setView('pdf-export')}
         onProfile={onProfile}
         userProfile={userProfile}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        searchResults={searchResults}
+        onNav={nav}
       />
 
       {/* ── Export PDF ── */}
@@ -262,17 +262,6 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
             onCancel={() => setView('dashboard')}
           />
         </>
-      )}
-
-      {/* ── Overlays ── */}
-      {searchOpen && (
-        <SearchOverlay
-          query={searchQuery}
-          onQueryChange={setSearchQuery}
-          results={searchResults}
-          onNav={nav}
-          onClose={() => setSearchOpen(false)}
-        />
       )}
 
       <DeleteEntryModal entry={delEntry} onConfirm={handleDeleteEntry} onCancel={() => setDelEntry(null)} />
