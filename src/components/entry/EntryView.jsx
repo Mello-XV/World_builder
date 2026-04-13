@@ -15,6 +15,14 @@ import { AffiliatedMembersView } from '../fields/AffiliatedMembersView';
 import { CommentsSection } from './CommentsSection';
 import { T, sTg } from '../../styles/theme';
 
+// Vrai si la valeur est vide, tableau vide, ou HTML sans texte réel (<br>, &nbsp;…)
+function htmlEmpty(v) {
+  if (!v) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v !== 'string') return false;
+  return v.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+}
+
 export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, projectId, userProfile }) {
   if (!entry) return <div>Introuvable.</div>;
 
@@ -81,7 +89,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
         {contentItems.map(item => {
           if (item.type === 'field') {
             const v = entry.fields?.[item.field.key];
-            if (!v) return null;
+            if (htmlEmpty(v)) return null;
             return (
               <div key={item.field.key} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
                 <div style={{ fontSize: 15, lineHeight: 1.7, textAlign: 'justify' }}>
@@ -91,7 +99,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
             );
           }
           const s = item.section;
-          if (!s.content) return null;
+          if (htmlEmpty(s.content)) return null;
           return (
             <div key={s.id} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
               <div style={{ fontSize: 11, color: cat.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>
@@ -133,7 +141,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
         {/* ── Colonne principale (gauche) ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Description */}
-          {entry.description && (
+          {!htmlEmpty(entry.description) && (
             <div
               style={{
                 marginBottom: 14,
@@ -166,7 +174,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
             if (item.type === 'field') {
               const f = item.field;
               const v = entry.fields?.[f.key];
-              if (!v || (Array.isArray(v) && !v.length)) return null;
+              if (htmlEmpty(v)) return null;
               const label = f.key === 'personnagesLies'
                 ? `Personnages secondaires liés à ${entry.name}`
                 : f.label;
@@ -182,7 +190,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
               );
             }
             const s = item.section;
-            if (!s.content) return null;
+            if (htmlEmpty(s.content)) return null;
             return (
               <div key={s.id} style={{ marginBottom: 14, padding: '14px 18px', background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 6 }}>
                 <div style={{ fontSize: 11, color: cat.color, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 6, fontWeight: 700 }}>
@@ -225,10 +233,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
           </div>
 
           {/* Informations générales */}
-          {generalFields.some(f => {
-            const v = entry.fields?.[f.key];
-            return v && (Array.isArray(v) ? v.length > 0 : true);
-          }) && (
+          {generalFields.some(f => !htmlEmpty(entry.fields?.[f.key])) && (
             <div
               style={{
                 background: T.bgC,
@@ -251,7 +256,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
               </div>
               {generalFields.map(f => {
                 const v = entry.fields?.[f.key];
-                if (!v || (Array.isArray(v) && !v.length)) return null;
+                if (htmlEmpty(v)) return null;
                 return (
                   <div key={f.key} style={{ padding: '5px 0', borderBottom: `1px solid ${T.bd}22` }}>
                     <div style={{ color: T.mu, fontWeight: 600, fontSize: 12, marginBottom: 2 }}>

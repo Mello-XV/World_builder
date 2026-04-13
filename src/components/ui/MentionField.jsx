@@ -52,6 +52,13 @@ function deleteCharsBefore(n) {
 
 // ── Conversion TSV → table HTML ───────────────────────────────────────────
 
+// Retourne true si le HTML du contenteditable est "effectivement vide"
+// (seulement des <br>, balises vides, &nbsp; — pas de texte réel)
+function isEffectivelyEmpty(html) {
+  if (!html) return true;
+  return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+}
+
 function tsvToHtmlTable(tsv) {
   const rows = tsv
     .trim()
@@ -216,7 +223,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
   const handleInput = useCallback(() => {
     if (!ref.current) return;
     const html = ref.current.innerHTML;
-    onChange(html);
+    onChange(isEffectivelyEmpty(html) ? '' : html);
 
     const before = getTextBeforeCursor(ref.current);
     const atIndex = before.lastIndexOf('@');

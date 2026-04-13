@@ -218,9 +218,16 @@ export function renderFieldEdit(field, fields, setFields, entries, _charName) {
 
 // ── Rendu en mode LECTURE ─────────────────────────────────────────────────
 
+function htmlEmpty(v) {
+  if (!v) return true;
+  if (Array.isArray(v)) return v.length === 0;
+  if (typeof v !== 'string') return false;
+  return v.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
+}
+
 export function renderFieldView(field, fields, entries, onNav) {
   const value = fields?.[field.key];
-  if (!value || (Array.isArray(value) && !value.length)) return null;
+  if (htmlEmpty(value)) return null;
 
   switch (field.type) {
     case 'affiliations':
