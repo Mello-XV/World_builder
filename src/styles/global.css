@@ -40,6 +40,19 @@ select:focus {
   outline: none;
 }
 
+/* Placeholder pour les champs contenteditable */
+[contenteditable]:empty::before {
+  content: attr(data-placeholder);
+  color: #5a5245;
+  pointer-events: none;
+}
+
+/* Focus sur les champs contenteditable */
+[contenteditable]:focus {
+  border-color: #c9a84c55 !important;
+  outline: none;
+}
+
 /* Conteneur principal */
 #root {
   max-width: 1000px;
