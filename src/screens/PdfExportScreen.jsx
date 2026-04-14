@@ -103,8 +103,13 @@ export function PdfExportScreen({ project, data, onBack }) {
         const A4W = 595; // points
         const A4H = 842;
         const ptPerPx = A4W / canvas.width; // points per canvas pixel
-        const pxPerPage = Math.round(A4H / ptPerPx); // canvas pixels fitting one PDF page
 
+        // Page 1 : pleine hauteur. Pages suivantes : marge en haut.
+        const TOP_MARGIN_PT = 32; // pt — marge haute des pages 2+
+        const pxPerPage1 = Math.round(A4H / ptPerPx);
+        const pxPerPageN = Math.round((A4H - TOP_MARGIN_PT) / ptPerPx);
+
+        const BG_CSS = '#1a1915';
         const BG = [26, 25, 21]; // #1a1915
         const TOL = 20;
 
@@ -121,10 +126,9 @@ export function PdfExportScreen({ project, data, onBack }) {
         const findSafeCut = (nominalY) => {
           if (!pixelData) return nominalY;
           const limit = Math.max(0, nominalY - 300);
-          const step = 4; // échantillonnage (1 pixel sur 4)
+          const step = 4;
           for (let y = Math.min(nominalY, canvas.height - 1); y > limit; y--) {
-            let bgCount = 0;
-            let total = 0;
+            let bgCount = 0, total = 0;
             for (let x = 0; x < canvas.width; x += step) {
               total++;
               const i = (y * canvas.width + x) * 4;
@@ -139,7 +143,7 @@ export function PdfExportScreen({ project, data, onBack }) {
           return nominalY;
         };
 
-        // Trouver le bas réel du contenu (ignorer l'espace vide de padding en bas)
+        // Trouver le bas réel du contenu (ignorer le padding vide en bas)
         let contentBottom = canvas.height;
         if (pixelData) {
           for (let y = canvas.height - 1; y >= 0; y--) {
@@ -152,38 +156,50 @@ export function PdfExportScreen({ project, data, onBack }) {
                 Math.abs(pixelData[i+2] - BG[2]) > TOL
               ) { hasContent = true; break; }
             }
-            if (hasContent) {
-              contentBottom = Math.min(y + 20, canvas.height); // +20px marge sous le contenu
-              break;
-            }
+            if (hasContent) { contentBottom = Math.min(y + 20, canvas.height); break; }
           }
         }
 
-        // Construire les points de découpe (en pixels canvas)
+        // Construire les points de découpe en tenant compte des hauteurs différentes
         const cuts = [0];
-        let nextNominal = pxPerPage;
+        let nextNominal = pxPerPage1; // page 1 = pleine hauteur
         while (nextNominal < contentBottom) {
           const safe = findSafeCut(nextNominal);
           cuts.push(safe);
-          nextNominal = safe + pxPerPage;
+          nextNominal = safe + pxPerPageN; // pages suivantes = hauteur - marge haute
         }
-        // Ajouter le bas du contenu (pas canvas.height, pour éviter la page vide)
         if (cuts[cuts.length - 1] < contentBottom) cuts.push(contentBottom);
 
-        // Build PDF — one cropped slice per page
+        // Générer le PDF — une tranche par page.
+        // Chaque canvas temporaire a la hauteur COMPLÈTE de la zone disponible sur la page
+        // (fond BG_CSS pré-rempli + contenu par-dessus) → couleur de fond uniforme, sans couture.
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-        pdf.setFillColor(26, 25, 21); // #1a1915 — fond de l'app
         for (let i = 0; i < cuts.length - 1; i++) {
           if (i > 0) pdf.addPage();
-          // Remplir toute la page avec la couleur de fond (espace libre en bas de dernière page)
-          pdf.rect(0, 0, A4W, A4H, 'F');
+
           const y0 = cuts[i];
           const y1 = cuts[i + 1];
+          const topMarginPt = i === 0 ? 0 : TOP_MARGIN_PT;
+          // Hauteur disponible sur cette page (en pixels canvas)
+          const pageSlicePx = i === 0 ? pxPerPage1 : pxPerPageN;
+
+          // Canvas temporaire = hauteur de la zone disponible (fond + contenu)
           const tmp = document.createElement('canvas');
           tmp.width = canvas.width;
-          tmp.height = y1 - y0;
-          tmp.getContext('2d').drawImage(canvas, 0, -y0);
-          pdf.addImage(tmp.toDataURL('image/jpeg', 0.88), 'JPEG', 0, 0, A4W, (y1 - y0) * ptPerPx);
+          tmp.height = pageSlicePx;
+          const ctx = tmp.getContext('2d');
+          ctx.fillStyle = BG_CSS;           // remplir d'abord avec le fond
+          ctx.fillRect(0, 0, tmp.width, tmp.height);
+          ctx.drawImage(canvas, 0, -y0);    // coller la tranche (le reste reste fond)
+
+          // Sur les pages 2+, remplir aussi la bande de marge haute avec le fond
+          if (topMarginPt > 0) {
+            pdf.setFillColor(26, 25, 21);
+            pdf.rect(0, 0, A4W, topMarginPt, 'F');
+          }
+
+          const imgHeightPt = pageSlicePx * ptPerPx; // = A4H - topMarginPt
+          pdf.addImage(tmp.toDataURL('image/jpeg', 0.92), 'JPEG', 0, topMarginPt, A4W, imgHeightPt);
         }
 
         const safeName = (entry.name || 'fiche').replace(/[/\\?%*:|"<>]/g, '_');
