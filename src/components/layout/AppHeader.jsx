@@ -52,14 +52,16 @@ export function AppHeader({
         display: 'flex',
         alignItems: 'center',
         gap: 8,
+        flex: 1,       /* prend toute la largeur du conteneur parent */
+        minWidth: 0,
       }}>
         {/* Bouton globe */}
         <button style={{ ...sBs, padding: '4px 10px', flexShrink: 0 }} onClick={onGoProjects}>
           🌍
         </button>
 
-        {/* Nom du projet */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Nom du projet — largeur naturelle, max 360 px, ellipsis au-delà */}
+        <div style={{ flexShrink: 1, maxWidth: 360, minWidth: 0 }}>
           <p style={{ fontSize: 10, color: T.dm, letterSpacing: 3, textTransform: 'uppercase', margin: 0 }}>
             Encyclopédie
           </p>
@@ -83,9 +85,9 @@ export function AppHeader({
           </h1>
         </div>
 
-        {/* Barre de recherche (desktop uniquement ici, mobile = ligne 2) */}
+        {/* Barre de recherche — prend tout l'espace restant (desktop) */}
         {!isMobile && (
-          <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
+          <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
             <SearchInput
               inputRef={inputRef}
               searchQuery={searchQuery}
@@ -96,8 +98,8 @@ export function AppHeader({
           </div>
         )}
 
-        {/* Actions : PDF + Profil */}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+        {/* Actions : PDF + Profil — poussés à droite */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginLeft: 'auto' }}>
           <button style={sBs} onClick={onExportPdf} title="Exporter en PDF">
             📄
           </button>
@@ -110,7 +112,7 @@ export function AppHeader({
               borderColor: T.ac + '44',
               fontWeight: 600,
               letterSpacing: 0.5,
-              maxWidth: isMobile ? 90 : 140,
+              maxWidth: isMobile ? 90 : 160,
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
