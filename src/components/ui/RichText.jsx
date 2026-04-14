@@ -99,14 +99,18 @@ function ResizableTable({ headers, rows, initialColPcts }) {
     border: `1px solid ${T.bd}`,
     position: 'relative',
     userSelect: 'none',
-    overflow: 'hidden',
+    whiteSpace: 'normal',
+    wordBreak: 'break-word',
+    overflowWrap: 'break-word',
   };
 
   const tdStyle = {
     padding: '6px 10px',
     textAlign: 'left',
     border: `1px solid ${T.bd}`,
+    whiteSpace: 'normal',
     wordBreak: 'break-word',
+    overflowWrap: 'break-word',
   };
 
   return (
