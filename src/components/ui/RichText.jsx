@@ -90,7 +90,17 @@ function ResizableTable({ headers, rows, initialColPcts }) {
     window.addEventListener('mouseup', onUp);
   };
 
+  const cellBase = {
+    // maxWidth:0 + table-layout:fixed = le navigateur respecte strictement
+    // la largeur de colonne et ne laisse pas le texte déborder.
+    maxWidth: 0,
+    whiteSpace: 'normal',
+    wordBreak: 'break-all',   // coupe même les longues suites sans espaces
+    overflowWrap: 'break-word',
+  };
+
   const thStyle = {
+    ...cellBase,
     padding: '6px 10px',
     textAlign: 'left',
     fontWeight: 700,
@@ -99,18 +109,13 @@ function ResizableTable({ headers, rows, initialColPcts }) {
     border: `1px solid ${T.bd}`,
     position: 'relative',
     userSelect: 'none',
-    whiteSpace: 'normal',
-    wordBreak: 'break-word',
-    overflowWrap: 'break-word',
   };
 
   const tdStyle = {
+    ...cellBase,
     padding: '6px 10px',
     textAlign: 'left',
     border: `1px solid ${T.bd}`,
-    whiteSpace: 'normal',
-    wordBreak: 'break-word',
-    overflowWrap: 'break-word',
   };
 
   return (
