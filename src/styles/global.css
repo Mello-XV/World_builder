@@ -65,4 +65,22 @@ select:focus {
   max-width: 1000px;
   margin: 0 auto;
   padding: 0 20px 40px;
+  padding-left: max(20px, env(safe-area-inset-left));
+  padding-right: max(20px, env(safe-area-inset-right));
+}
+
+@media (max-width: 768px) {
+  #root {
+    padding: 0 12px calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Évite les dépassements horizontaux sur mobile */
+  img, table {
+    max-width: 100%;
+  }
+
+  /* Tables lisibles sur petits écrans */
+  table {
+    font-size: 13px;
+  }
 }

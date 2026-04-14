@@ -176,7 +176,7 @@ export function ProjectsScreen({
           onClick={() => setNewProj(null)}
         >
           <div
-            style={{ background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 8, padding: 30, width: '90%', maxWidth: 450 }}
+            style={{ background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 8, padding: 'clamp(16px, 5vw, 30px)', width: '90%', maxWidth: 450 }}
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16, color: T.ac }}>Nouveau projet</h3>
@@ -213,7 +213,7 @@ export function ProjectsScreen({
           onClick={closeFollowModal}
         >
           <div
-            style={{ background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 8, padding: 30, width: '90%', maxWidth: 420 }}
+            style={{ background: T.bgC, border: `1px solid ${T.bd}`, borderRadius: 8, padding: 'clamp(16px, 5vw, 30px)', width: '90%', maxWidth: 420 }}
             onClick={e => e.stopPropagation()}
           >
             <h3 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8, color: T.ac }}>Suivre un projet</h3>

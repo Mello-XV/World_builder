@@ -26,7 +26,7 @@ export function EditProjectNameModal({ name, onChange, onConfirm, onCancel }) {
           background: T.bgC,
           border: `1px solid ${T.bd}`,
           borderRadius: 8,
-          padding: 30,
+          padding: 'clamp(16px, 5vw, 30px)',
           width: '90%',
           maxWidth: 400,
         }}

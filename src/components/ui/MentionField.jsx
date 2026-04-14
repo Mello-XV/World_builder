@@ -460,7 +460,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
   return (
     <div style={{ position: 'relative' }}>
       {/* Toolbar de formatage */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+      <div style={{ display: 'flex', gap: 4, marginBottom: 4, flexWrap: 'wrap' }}>
         <button
           type="button"
           onMouseDown={e => { e.preventDefault(); applyFormat('bold'); }}

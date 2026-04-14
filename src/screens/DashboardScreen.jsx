@@ -9,8 +9,10 @@
 
 import { CATEGORIES, CAT_ORDER } from '../constants/categories';
 import { T, sCard, sBtnA, sBtn, hov } from '../styles/theme';
+import { useIsMobile } from '../lib/useIsMobile';
 
 export function DashboardScreen({ data, onOpenCategory, onNewEntry, onNav }) {
+  const isMobile = useIsMobile();
   const total = Object.keys(data.entries).length;
   const recent = Object.values(data.entries)
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
@@ -32,7 +34,7 @@ export function DashboardScreen({ data, onOpenCategory, onNewEntry, onNav }) {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))',
+          gridTemplateColumns: `repeat(auto-fill,minmax(${isMobile ? '90px' : '140px'},1fr))`,
           gap: 8,
           marginBottom: 24,
         }}

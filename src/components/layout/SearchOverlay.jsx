@@ -8,9 +8,11 @@
 import { useRef, useEffect } from 'react';
 import { CATEGORIES } from '../../constants/categories';
 import { T, sInp, hov } from '../../styles/theme';
+import { useIsMobile } from '../../lib/useIsMobile';
 
 export function SearchOverlay({ query, onQueryChange, results, onNav, onClose }) {
   const inputRef = useRef(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 50);
@@ -25,7 +27,8 @@ export function SearchOverlay({ query, onQueryChange, results, onNav, onClose })
         zIndex: 1000,
         display: 'flex',
         justifyContent: 'center',
-        paddingTop: 80,
+        alignItems: 'flex-start',
+        paddingTop: isMobile ? 20 : 80,
       }}
       onClick={onClose}
     >
@@ -37,7 +40,7 @@ export function SearchOverlay({ query, onQueryChange, results, onNav, onClose })
           border: `1px solid ${T.bd}`,
           borderRadius: 8,
           overflow: 'hidden',
-          maxHeight: '60vh',
+          maxHeight: isMobile ? '80vh' : '60vh',
           display: 'flex',
           flexDirection: 'column',
         }}

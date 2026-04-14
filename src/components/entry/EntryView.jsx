@@ -14,6 +14,7 @@ import { DynastyMembersView } from '../fields/DynastyMembersView';
 import { AffiliatedMembersView } from '../fields/AffiliatedMembersView';
 import { CommentsSection } from './CommentsSection';
 import { T, sTg } from '../../styles/theme';
+import { useIsMobile } from '../../lib/useIsMobile';
 
 // Vrai si la valeur est vide, tableau vide, ou HTML sans texte réel (<br>, &nbsp;…)
 function htmlEmpty(v) {
@@ -24,6 +25,7 @@ function htmlEmpty(v) {
 }
 
 export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, projectId, userProfile }) {
+  const isMobile = useIsMobile();
   if (!entry) return <div>Introuvable.</div>;
 
   const cat = CATEGORIES[entry.category];
@@ -137,7 +139,13 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
         <h2 style={{ margin: 0, fontSize: 26, fontWeight: 700, lineHeight: 1.3 }}>{entry.name}</h2>
       </div>
 
-      <div style={{ display: 'flex', gap: 20, marginBottom: 20, alignItems: 'flex-start' }}>
+      <div style={{
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: 20,
+        marginBottom: 20,
+        alignItems: 'flex-start',
+      }}>
         {/* ── Colonne principale (gauche) ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
           {/* Description */}
@@ -204,11 +212,25 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
           })}
         </div>
 
-        {/* ── Colonne latérale (droite) ── */}
-        <div style={{ flex: '0 0 280px', width: 280 }}>
+        {/* ── Colonne latérale (droite / bas mobile) ── */}
+        <div style={isMobile
+          ? { width: '100%' }
+          : { flex: '0 0 280px', width: 280 }
+        }>
           {/* Photo */}
           <div
-            style={{
+            style={isMobile ? {
+              width: '100%',
+              maxHeight: 220,
+              background: T.bgI,
+              border: `1px solid ${T.bd}`,
+              borderRadius: 6,
+              marginBottom: 12,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            } : {
               width: '100%',
               aspectRatio: '3/4',
               background: T.bgI,
@@ -224,7 +246,10 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
             {entry.photo ? (
               <img
                 src={entry.photo}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={isMobile
+                  ? { width: '100%', height: 220, objectFit: 'cover' }
+                  : { width: '100%', height: '100%', objectFit: 'cover' }
+                }
                 alt={entry.name}
               />
             ) : (
