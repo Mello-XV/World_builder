@@ -90,6 +90,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
   const [tablePicker, setTablePicker] = useState(null); // null | { rows, cols }
   const ref = useRef(null);
   const savedRangeRef = useRef(null); // curseur sauvegardé avant ouverture du table picker
+  const colResizingRef = useRef(false); // true pendant un drag de colonne
 
   const allEntries = useMemo(() => Object.values(entries), [entries]);
 
@@ -247,6 +248,78 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     [mention.charCount, onChange],
   );
 
+  // ── Redimensionnement de colonnes de tableau (edit mode) ─────────────
+  // Détecte si la souris est à ≤8px du bord droit d'un <td>/<th>
+  // et renvoie {table, cols[], colIdx} ou null.
+
+  const getColResizeTarget = useCallback((e) => {
+    if (!multiline || !ref.current) return null;
+    let el = e.target;
+    while (el && el !== ref.current) {
+      const tag = el.tagName?.toUpperCase();
+      if (tag === 'TD' || tag === 'TH') {
+        const rect = el.getBoundingClientRect();
+        const fromRight = rect.right - e.clientX;
+        if (fromRight >= 0 && fromRight <= 8) {
+          const row = el.parentElement;
+          const table = row?.closest('table');
+          const colgroup = table?.querySelector('colgroup');
+          if (!colgroup) return null;
+          const cols = Array.from(colgroup.querySelectorAll('col'));
+          const colIdx = Array.from(row.children).indexOf(el);
+          // Pas de redimensionnement sur le bord droit de la dernière colonne
+          if (colIdx < 0 || colIdx >= cols.length - 1) return null;
+          return { table, cols, colIdx };
+        }
+        return null;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }, [multiline]);
+
+  const handleColMouseMove = useCallback((e) => {
+    if (!ref.current || colResizingRef.current) return;
+    ref.current.style.cursor = getColResizeTarget(e) ? 'col-resize' : '';
+  }, [getColResizeTarget]);
+
+  const handleColMouseDown = useCallback((e) => {
+    const target = getColResizeTarget(e);
+    if (!target) return;
+    e.preventDefault();
+
+    const { table, cols, colIdx } = target;
+    const tableWidth = table.getBoundingClientRect().width || 1;
+    const startX = e.clientX;
+    const startPcts = cols.map(col => parseFloat(col.style.width) || (100 / cols.length));
+
+    colResizingRef.current = true;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    const onMove = (ev) => {
+      const deltaPct = ((ev.clientX - startX) / tableWidth) * 100;
+      const minPct = (40 / tableWidth) * 100;
+      const pairTotal = startPcts[colIdx] + startPcts[colIdx + 1];
+      const newPct = Math.min(Math.max(minPct, startPcts[colIdx] + deltaPct), pairTotal - minPct);
+      cols[colIdx].style.width = newPct + '%';
+      cols[colIdx + 1].style.width = (pairTotal - newPct) + '%';
+    };
+
+    const onUp = () => {
+      colResizingRef.current = false;
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      if (ref.current) ref.current.style.cursor = '';
+      onChange(ref.current?.innerHTML || '');
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, [getColResizeTarget, onChange]);
+
   // ── Indentation (Tab / Shift+Tab) ────────────────────────────────────
   // Pour les listes (<li>), utilise indent/outdent natif (niveaux d'imbrication).
   // Pour les blocs normaux, applique margin-left CSS directement —
@@ -311,7 +384,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         return;
       }
 
-      // Enter dans une cellule de tableau → saut de ligne (<br>), pas de nouveau bloc
+      // Enter dans une cellule de tableau → saut de ligne, pas de nouveau bloc
       if (ev.key === 'Enter' && multiline && !mention.active) {
         const sel = window.getSelection();
         if (sel && sel.rangeCount) {
@@ -322,7 +395,8 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
             const tag = walker.tagName?.toUpperCase();
             if (tag === 'TD' || tag === 'TH') {
               ev.preventDefault();
-              document.execCommand('insertHTML', false, '<br>');
+              // insertLineBreak est la commande prévue pour <br> dans contenteditable
+              document.execCommand('insertLineBreak');
               onChange(ref.current.innerHTML || '');
               return;
             }
@@ -353,7 +427,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         setMention({ active: false, query: '', charCount: 0 });
       }
     },
-    [mention, filtered, selectedIndex, insertMention, multiline, applyFormat, handleIndent],
+    [mention, filtered, selectedIndex, insertMention, multiline, applyFormat, handleIndent, onChange],
   );
 
   // ── Rendu mode simple (input) ─────────────────────────────────────────
@@ -482,6 +556,8 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onMouseMove={handleColMouseMove}
+        onMouseDown={handleColMouseDown}
         data-placeholder={placeholder}
         style={editableStyle}
       />
