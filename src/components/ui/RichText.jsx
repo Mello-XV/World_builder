@@ -28,7 +28,7 @@ function isHtml(text) {
 
 // ── Mode HTML : conversion DOM → React ───────────────────────────────────
 
-const SAFE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'p', 'div', 'span']);
+const SAFE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'p', 'div', 'span', 'ul', 'ol', 'li']);
 
 // ── Tableau redimensionnable ──────────────────────────────────────────────
 
@@ -199,6 +199,7 @@ function domToReact(node, entries, onNav, key) {
   if (node.style?.fontWeight === 'bold' || node.style?.fontWeight === '700') inlineStyle.fontWeight = 'bold';
   if (node.style?.fontStyle === 'italic') inlineStyle.fontStyle = 'italic';
   if (node.style?.textDecoration?.includes('underline')) inlineStyle.textDecoration = 'underline';
+  if (node.style?.marginLeft) inlineStyle.marginLeft = node.style.marginLeft;
 
   if (!SAFE_TAGS.has(tag)) {
     // Tag non-sûr : on aplatit le contenu
@@ -263,6 +264,15 @@ function domToReact(node, entries, onNav, key) {
           {children}
         </p>
       );
+
+    case 'ul':
+      return <ul key={key} style={{ margin: '6px 0', paddingLeft: node.style?.paddingLeft || '22px', ...inlineStyle }}>{children}</ul>;
+
+    case 'ol':
+      return <ol key={key} style={{ margin: '6px 0', paddingLeft: node.style?.paddingLeft || '22px', ...inlineStyle }}>{children}</ol>;
+
+    case 'li':
+      return <li key={key} style={{ margin: '3px 0', lineHeight: 1.7, listStyleType: node.style?.listStyleType || undefined, ...inlineStyle }}>{children}</li>;
 
     case 'span':
       return <span key={key} style={inlineStyle}>{children}</span>;
