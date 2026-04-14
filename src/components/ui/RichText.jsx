@@ -33,27 +33,48 @@ const SAFE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead'
 // ── Tableau redimensionnable ──────────────────────────────────────────────
 
 function ResizableTable({ headers, rows }) {
-  const [widths, setWidths] = useState(null);
+  // colPcts : largeurs en pourcentage (somme = 100). null = distribution auto égale.
+  const [colPcts, setColPcts] = useState(null);
   const tableRef = useRef(null);
   const dragRef = useRef(null);
 
+  const n = headers?.length || rows[0]?.length || 1;
+
   const startResize = (colIdx, e) => {
     e.preventDefault();
-    const ths = tableRef.current?.querySelectorAll('th');
-    const startWidths = widths || (ths ? Array.from(ths).map(th => th.getBoundingClientRect().width) : null);
-    if (!startWidths) return;
 
-    dragRef.current = { colIdx, startX: e.clientX, startWidths: [...startWidths] };
-    if (!widths) setWidths([...startWidths]);
+    // Largeur courante du tableau en pixels (pour convertir le delta en %)
+    const tableWidth = tableRef.current?.getBoundingClientRect().width || 1;
+    const ths = tableRef.current?.querySelectorAll('th');
+
+    let startPcts;
+    if (colPcts) {
+      startPcts = [...colPcts];
+    } else if (ths && ths.length > 0) {
+      const pxWidths = Array.from(ths).map(th => th.getBoundingClientRect().width);
+      const total = pxWidths.reduce((a, b) => a + b, 0) || tableWidth;
+      startPcts = pxWidths.map(w => (w / total) * 100);
+    } else {
+      startPcts = Array.from({ length: n }, () => 100 / n);
+    }
+
+    dragRef.current = { colIdx, startX: e.clientX, startPcts, tableWidth };
+    if (!colPcts) setColPcts(startPcts);
 
     const onMove = ev => {
       if (!dragRef.current) return;
-      const { colIdx: ci, startX, startWidths: sw } = dragRef.current;
-      const delta = ev.clientX - startX;
-      setWidths(prev => {
-        const base = prev || sw;
-        const next = [...base];
-        next[ci] = Math.max(40, sw[ci] + delta);
+      const { colIdx: ci, startX, startPcts: sp, tableWidth: tw } = dragRef.current;
+      // Convertir le déplacement pixel en % de la largeur du tableau
+      const deltaPct = ((ev.clientX - startX) / tw) * 100;
+      // Minimum de 40px converti en % pour éviter les colonnes trop étroites
+      const minPct = (40 / tw) * 100;
+
+      setColPcts(() => {
+        const next = [...sp];
+        // Redistribuer uniquement entre ci et ci+1 — total de la paire reste constant
+        const pairTotal = sp[ci] + sp[ci + 1];
+        next[ci] = Math.min(Math.max(minPct, sp[ci] + deltaPct), pairTotal - minPct);
+        next[ci + 1] = pairTotal - next[ci];
         return next;
       });
     };
@@ -84,22 +105,23 @@ function ResizableTable({ headers, rows }) {
     padding: '6px 10px',
     textAlign: 'left',
     border: `1px solid ${T.bd}`,
+    wordBreak: 'break-word',
   };
 
   return (
-    <div style={{ overflowX: 'auto', margin: '8px 0' }}>
+    <div style={{ margin: '8px 0' }}>
       <table
         ref={tableRef}
         style={{
           borderCollapse: 'collapse',
           fontSize: 14,
-          tableLayout: widths ? 'fixed' : 'auto',
-          width: widths ? widths.reduce((a, b) => a + b, 0) + 'px' : '100%',
+          tableLayout: 'fixed', // toujours fixed : bords extérieurs figés
+          width: '100%',        // toujours 100% : le tableau ne déborde pas
         }}
       >
-        {widths && (
+        {colPcts && (
           <colgroup>
-            {widths.map((w, i) => <col key={i} style={{ width: w + 'px' }} />)}
+            {colPcts.map((p, i) => <col key={i} style={{ width: p + '%' }} />)}
           </colgroup>
         )}
         {headers && headers.length > 0 && (
@@ -108,6 +130,7 @@ function ResizableTable({ headers, rows }) {
               {headers.map((cell, ci) => (
                 <th key={ci} style={thStyle}>
                   {cell}
+                  {/* Poignée entre ci et ci+1 — pas sur le dernier bord droit */}
                   {ci < headers.length - 1 && (
                     <span
                       onMouseDown={e => startResize(ci, e)}

@@ -59,6 +59,11 @@ function isEffectivelyEmpty(html) {
   return html.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim() === '';
 }
 
+function buildColgroup(cols) {
+  const pct = (100 / cols).toFixed(2);
+  return `<colgroup>${Array.from({ length: cols }, () => `<col style="width:${pct}%">`).join('')}</colgroup>`;
+}
+
 function tsvToHtmlTable(tsv) {
   const rows = tsv
     .trim()
@@ -75,7 +80,7 @@ function tsvToHtmlTable(tsv) {
     )
     .join('');
 
-  return `<table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
+  return `<table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:14px;margin:8px 0">${buildColgroup(header.length)}<thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
 }
 
 
@@ -147,7 +152,7 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
       `<td style="padding:6px 10px;border:1px solid #3a332a">&nbsp;</td>`
     ).join('')}</tr>`;
     const trs = Array.from({ length: Math.max(rows - 1, 0) }, () => tdRow).join('');
-    const html = `<table style="border-collapse:collapse;width:100%;font-size:14px;margin:8px 0"><thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
+    const html = `<table style="border-collapse:collapse;width:100%;table-layout:fixed;font-size:14px;margin:8px 0">${buildColgroup(cols)}<thead><tr>${th}</tr></thead><tbody>${trs}</tbody></table><br>`;
     document.execCommand('insertHTML', false, html);
     onChange(ref.current?.innerHTML || '');
   }, [onChange]);
@@ -304,6 +309,26 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         ev.preventDefault();
         handleIndent(!ev.shiftKey);
         return;
+      }
+
+      // Enter dans une cellule de tableau → saut de ligne (<br>), pas de nouveau bloc
+      if (ev.key === 'Enter' && multiline && !mention.active) {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          let node = sel.getRangeAt(0).commonAncestorContainer;
+          if (node.nodeType === Node.TEXT_NODE) node = node.parentNode;
+          let walker = node;
+          while (walker && walker !== ref.current) {
+            const tag = walker.tagName?.toUpperCase();
+            if (tag === 'TD' || tag === 'TH') {
+              ev.preventDefault();
+              document.execCommand('insertHTML', false, '<br>');
+              onChange(ref.current.innerHTML || '');
+              return;
+            }
+            walker = walker.parentNode;
+          }
+        }
       }
 
       // Ctrl+B / Ctrl+I / Ctrl+U → formatage
