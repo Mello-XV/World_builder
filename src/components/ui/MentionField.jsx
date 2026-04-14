@@ -164,52 +164,14 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
 
       const plainLines = plain.trim().split('\n').filter(l => l.trim());
 
-      // Détecter une liste à puces (format Word/Office inclus).
-      // Word copie : puce principale = caractère •/▪/… + tab, sous-puce = lettre 'o' + tab.
-      const BULLET_RE = /^\s*[•·▪▸►‣⁃∙○●◦\u2022\u2023\u25E6]\s*/;
-      const WORD_SUB_RE = /^\s*o\t/; // sous-puce niveau 2 Word
-      const isBulletLine = l => BULLET_RE.test(l) || WORD_SUB_RE.test(l);
-      const isBulletList = plainLines.length > 0 && plainLines.every(isBulletLine);
+      // Si au moins une ligne commence par un caractère puce, traiter tout le bloc
+      // comme du texte ordinaire — les puces restent des caractères éditables normaux.
+      const BULLET_START_RE = /^\s*[•·▪▸►‣⁃∙○●◦\u2022\u2023\u25E6o]\s/;
+      const hasBullets = plainLines.some(l => BULLET_START_RE.test(l));
 
-      if (isBulletList) {
-        const escape = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        // Construire un arbre {text, children[]} pour les listes imbriquées
-        const items = [];
-        let current = null;
-        for (const line of plainLines) {
-          const isMain = BULLET_RE.test(line);
-          const text = escape(
-            isMain
-              ? line.replace(BULLET_RE, '').replace(/^\t/, '').trim()
-              : line.replace(WORD_SUB_RE, '').replace(/^\t/, '').trim()
-          );
-          if (isMain) {
-            current = { text, children: [] };
-            items.push(current);
-          } else if (current) {
-            current.children.push(text);
-          } else {
-            // Sous-puce orpheline : traiter comme puce principale
-            current = { text, children: [] };
-            items.push(current);
-          }
-        }
-        const listHtml = items.map(item => {
-          const sub = item.children.length > 0
-            ? `<ul style="margin:2px 0;padding-left:20px">${item.children.map(c =>
-                `<li style="margin:2px 0;line-height:1.7;list-style-type:circle">${c}</li>`
-              ).join('')}</ul>`
-            : '';
-          return `<li style="margin:3px 0;line-height:1.7">${item.text}${sub}</li>`;
-        }).join('');
-        document.execCommand('insertHTML', false,
-          `<ul style="margin:6px 0;padding-left:22px">${listHtml}</ul>`);
-        onChange(ref.current?.innerHTML || '');
-        return;
-      }
-
-      // Détecter un vrai tableau TSV : TOUTES les lignes non-vides ont des tabs.
+      // Détecter un vrai tableau TSV : toutes les lignes ont des tabs ET pas de puces.
       const isTsv =
+        !hasBullets &&
         plain.includes('\t') &&
         plainLines.length >= 1 &&
         plainLines.every(l => l.includes('\t'));
@@ -224,11 +186,12 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         return;
       }
 
-      // Texte ordinaire : chaque ligne non-vide devient un <p>.
+      // Texte ordinaire (puces incluses) : chaque ligne devient un <p>.
+      // Les tabs (après une puce Word) sont remplacés par un espace.
       const htmlContent = plain
         .split(/\r?\n/)
         .map(line => {
-          const text = line.trim();
+          const text = line.replace(/\t/g, ' ').trim();
           if (!text) return '';
           const escaped = text
             .replace(/&/g, '&amp;')
