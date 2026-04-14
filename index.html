@@ -3,6 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      script-src 'self' 'unsafe-inline';
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src 'self' https://fonts.gstatic.com;
+      img-src 'self' data: blob: https://firebasestorage.googleapis.com;
+      connect-src 'self'
+        https://*.googleapis.com
+        https://*.firebaseio.com
+        https://firestore.googleapis.com
+        https://identitytoolkit.googleapis.com
+        https://securetoken.googleapis.com;
+      frame-src 'none';
+      object-src 'none';
+    " />
     <title>World Builder — Wiki de World-Building</title>
     <link
       rel="preconnect"
@@ -17,7 +32,7 @@
       href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
-    <script type="module" crossorigin src="/World_builder/assets/index-D08cqTzh.js"></script>
+    <script type="module" crossorigin src="/World_builder/assets/index-BEDbr-M7.js"></script>
     <link rel="modulepreload" crossorigin href="/World_builder/assets/chunk-B3K2TuZy.js">
     <link rel="modulepreload" crossorigin href="/World_builder/assets/typeof-DmQ5kzpc.js">
     <link rel="stylesheet" crossorigin href="/World_builder/assets/index-DolstzFJ.css">
