@@ -216,7 +216,6 @@ export function ProfileScreen({
         <Section title="Pseudo">
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
             <div style={{ flex: 1 }}>
-              <label style={{ ...sLbl, color: T.mu }}>Pseudo visible par les autres utilisateurs</label>
               <input
                 style={sInp}
                 value={displayName}
