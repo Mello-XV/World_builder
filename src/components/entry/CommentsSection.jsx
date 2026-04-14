@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { subscribeToComments, addComment, deleteComment } from '../../lib/firestore';
+import { subscribeToComments, addComment, deleteComment, MAX_COMMENT_LENGTH } from '../../lib/firestore';
 import { auth } from '../../lib/firebase';
 import { T, sInp, sBtnA } from '../../styles/theme';
 
@@ -94,7 +94,8 @@ export function CommentsSection({ ownerUid, projectId, entryId, userProfile }) {
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
           <textarea
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={e => setText(e.target.value.slice(0, MAX_COMMENT_LENGTH))}
+            maxLength={MAX_COMMENT_LENGTH}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); }
             }}

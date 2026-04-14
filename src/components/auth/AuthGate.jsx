@@ -133,7 +133,7 @@ export function AuthGate({ children }) {
   const handleSignup = async () => {
     setError('');
     if (password !== confirm) { setError('Mots de passe différents'); return; }
-    if (password.length < 6) { setError('Min 6 caractères'); return; }
+    if (password.length < 8) { setError('Min 8 caractères'); return; }
     try {
       await createUserWithEmailAndPassword(auth, email, password);
       // Le statut pending est créé automatiquement dans onAuthStateChanged

@@ -26,7 +26,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { CATEGORIES } from '../../constants/categories';
 import { MentionField } from '../ui/MentionField';
 import { renderFieldEdit } from '../fields/FieldRenderer';
-import { uploadEntryPhoto } from '../../lib/firestore';
+import { uploadEntryPhoto, MAX_TAGS_LENGTH } from '../../lib/firestore';
 import { T, sCard, sInp, sLbl, sBtnA, sBtn, sBs } from '../../styles/theme';
 
 // ── Wrapper drag-and-drop ─────────────────────────────────────────────────
@@ -236,7 +236,7 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
         {!isRecit && (
           <div>
             <label style={{ ...sLbl, color: T.ac }}>Tags</label>
-            <input style={sInp} value={tags} onChange={ev => setTags(ev.target.value)} placeholder="tag1, tag2…" />
+            <input style={sInp} value={tags} onChange={ev => setTags(ev.target.value.slice(0, MAX_TAGS_LENGTH))} maxLength={MAX_TAGS_LENGTH} placeholder="tag1, tag2…" />
           </div>
         )}
       </div>

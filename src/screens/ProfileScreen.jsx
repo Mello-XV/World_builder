@@ -24,6 +24,7 @@ import {
   getOrCreateShareCode,
   getFollowRequestsForOwner,
   respondToFollowRequest,
+  MAX_DISPLAY_NAME,
 } from '../lib/firestore';
 import { T, sCard, sInp, sLbl, sBtnA, sBtn, sBs } from '../styles/theme';
 
@@ -109,7 +110,7 @@ export function ProfileScreen({
   // ── Pseudo ──────────────────────────────────────────────────────────────
 
   const handleSaveName = async () => {
-    const name = displayName.trim();
+    const name = displayName.trim().slice(0, MAX_DISPLAY_NAME);
     if (!name) return;
     await setUserProfile(user.uid, { displayName: name });
     onProfileUpdate({ ...userProfile, displayName: name });
@@ -140,7 +141,7 @@ export function ProfileScreen({
 
   const handleSavePassword = async () => {
     if (newPwd !== confirmPwd) { flash('error', 'Les mots de passe ne correspondent pas'); return; }
-    if (newPwd.length < 6) { flash('error', 'Minimum 6 caractères'); return; }
+    if (newPwd.length < 8) { flash('error', 'Minimum 8 caractères'); return; }
     try {
       const credential = EmailAuthProvider.credential(user.email, currentPwd);
       await reauthenticateWithCredential(auth.currentUser, credential);
@@ -219,8 +220,9 @@ export function ProfileScreen({
               <input
                 style={sInp}
                 value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
+                onChange={e => setDisplayName(e.target.value.slice(0, MAX_DISPLAY_NAME))}
                 placeholder="Votre pseudo"
+                maxLength={MAX_DISPLAY_NAME}
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); }}
               />
             </div>
@@ -270,7 +272,7 @@ export function ProfileScreen({
               </div>
               <div>
                 <label style={{ ...sLbl, color: T.mu }}>Nouveau mot de passe</label>
-                <PasswordInput value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Nouveau (min 6 caractères)" />
+                <PasswordInput value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Nouveau (min 8 caractères)" />
               </div>
               <div>
                 <label style={{ ...sLbl, color: T.mu }}>Confirmer</label>

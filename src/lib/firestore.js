@@ -7,6 +7,7 @@
  */
 
 import {
+  addDoc,
   collection,
   doc,
   getDoc,
@@ -19,6 +20,11 @@ import {
   where,
   onSnapshot,
 } from 'firebase/firestore';
+
+// ── Constantes de validation ──────────────────────────────────────────────
+export const MAX_DISPLAY_NAME = 50;
+export const MAX_COMMENT_LENGTH = 2000;
+export const MAX_TAGS_LENGTH = 200;
 
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from './firebase';
@@ -188,6 +194,7 @@ function generateCode() {
 /**
  * Retourne le code de partage d'un projet, en le créant si besoin.
  * Le code est stocké dans le document projet ET dans shareCodes/{code}.
+ * Utilise une transaction pour éviter les collisions de code entre appels concurrents.
  */
 export async function getOrCreateShareCode(projectId) {
   const uid = getUserId();
@@ -198,14 +205,33 @@ export async function getOrCreateShareCode(projectId) {
     if (!projSnap.exists()) return null;
     const data = projSnap.data();
     if (data.shareCode) return data.shareCode;
-    let code;
-    do { code = generateCode(); }
-    while ((await getDoc(doc(db, 'shareCodes', code))).exists());
-    await Promise.all([
-      setDoc(projRef, { shareCode: code }, { merge: true }),
-      setDoc(doc(db, 'shareCodes', code), { ownerUid: uid, projectId, projectName: data.name }),
-    ]);
-    return code;
+
+    // Générer un code unique et l'enregistrer dans une transaction atomique
+    let finalCode = null;
+    await runTransaction(db, async tx => {
+      // Vérifier à nouveau dans la transaction que le projet n'a pas déjà un code
+      const freshSnap = await tx.get(projRef);
+      if (freshSnap.data()?.shareCode) {
+        finalCode = freshSnap.data().shareCode;
+        return;
+      }
+      // Trouver un code libre (tentatives en dehors de la tx pour limiter les lectures)
+      let code;
+      let codeRef;
+      let attempts = 0;
+      do {
+        code = generateCode();
+        codeRef = doc(db, 'shareCodes', code);
+        const existing = await tx.get(codeRef);
+        if (!existing.exists()) break;
+        attempts++;
+      } while (attempts < 10);
+
+      tx.set(projRef, { shareCode: code }, { merge: true });
+      tx.set(codeRef, { ownerUid: uid, projectId, projectName: data.name });
+      finalCode = code;
+    });
+    return finalCode;
   } catch (e) {
     console.error('getOrCreateShareCode:', e);
     return null;
@@ -327,11 +353,13 @@ export function subscribeToComments(ownerUid, projectId, entryId, callback) {
 
 /** Ajoute un commentaire sur une fiche. */
 export async function addComment(ownerUid, projectId, entryId, authorUid, authorName, text) {
+  const trimmed = text.trim().slice(0, MAX_COMMENT_LENGTH);
+  if (!trimmed) return;
   const entryKey = `${ownerUid}_${projectId}_${String(entryId)}`;
   try {
-    await setDoc(doc(db, 'comments', `${entryKey}_${Date.now()}`), {
+    await addDoc(collection(db, 'comments'), {
       entryKey, ownerUid, projectId, entryId: String(entryId),
-      authorUid, authorName, text: text.trim(), createdAt: Date.now(),
+      authorUid, authorName, text: trimmed, createdAt: Date.now(),
     });
   } catch (e) { console.error('addComment:', e); }
 }
