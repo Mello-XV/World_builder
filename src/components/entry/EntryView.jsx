@@ -144,7 +144,7 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
         flexDirection: isMobile ? 'column' : 'row',
         gap: 20,
         marginBottom: 20,
-        alignItems: 'flex-start',
+        alignItems: isMobile ? 'stretch' : 'flex-start',
       }}>
         {/* ── Colonne principale (gauche) ── */}
         <div style={{ flex: 1, minWidth: 0 }}>
