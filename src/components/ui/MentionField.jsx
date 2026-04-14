@@ -164,20 +164,46 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
 
       const plainLines = plain.trim().split('\n').filter(l => l.trim());
 
-      // Détecter une liste à puces : chaque ligne commence par un caractère puce.
-      // Ces listes ont souvent un tab après la puce (format Word/Office) et
-      // seraient faussement détectées comme TSV sans cette vérification en premier.
+      // Détecter une liste à puces (format Word/Office inclus).
+      // Word copie : puce principale = caractère •/▪/… + tab, sous-puce = lettre 'o' + tab.
       const BULLET_RE = /^\s*[•·▪▸►‣⁃∙○●◦\u2022\u2023\u25E6]\s*/;
-      const isBulletList = plainLines.length > 0 && plainLines.every(l => BULLET_RE.test(l));
+      const WORD_SUB_RE = /^\s*o\t/; // sous-puce niveau 2 Word
+      const isBulletLine = l => BULLET_RE.test(l) || WORD_SUB_RE.test(l);
+      const isBulletList = plainLines.length > 0 && plainLines.every(isBulletLine);
 
       if (isBulletList) {
-        const items = plainLines.map(l => {
-          const text = l.replace(BULLET_RE, '').replace(/^\t/, '').trim();
-          const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-          return `<li style="margin:3px 0;line-height:1.7">${escaped}</li>`;
+        const escape = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        // Construire un arbre {text, children[]} pour les listes imbriquées
+        const items = [];
+        let current = null;
+        for (const line of plainLines) {
+          const isMain = BULLET_RE.test(line);
+          const text = escape(
+            isMain
+              ? line.replace(BULLET_RE, '').replace(/^\t/, '').trim()
+              : line.replace(WORD_SUB_RE, '').replace(/^\t/, '').trim()
+          );
+          if (isMain) {
+            current = { text, children: [] };
+            items.push(current);
+          } else if (current) {
+            current.children.push(text);
+          } else {
+            // Sous-puce orpheline : traiter comme puce principale
+            current = { text, children: [] };
+            items.push(current);
+          }
+        }
+        const listHtml = items.map(item => {
+          const sub = item.children.length > 0
+            ? `<ul style="margin:2px 0;padding-left:20px">${item.children.map(c =>
+                `<li style="margin:2px 0;line-height:1.7;list-style-type:circle">${c}</li>`
+              ).join('')}</ul>`
+            : '';
+          return `<li style="margin:3px 0;line-height:1.7">${item.text}${sub}</li>`;
         }).join('');
         document.execCommand('insertHTML', false,
-          `<ul style="margin:6px 0;padding-left:22px">${items}</ul>`);
+          `<ul style="margin:6px 0;padding-left:22px">${listHtml}</ul>`);
         onChange(ref.current?.innerHTML || '');
         return;
       }
@@ -254,12 +280,56 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
   );
 
   // ── Indentation (Tab / Shift+Tab) ────────────────────────────────────
-  // Utilise les commandes natives du navigateur : fiables et réversibles.
+  // Pour les listes (<li>), utilise indent/outdent natif (niveaux d'imbrication).
+  // Pour les blocs normaux, applique margin-left CSS directement —
+  // execCommand('outdent') est peu fiable quand le curseur n'est pas en début de ligne.
 
   const handleIndent = useCallback((increase) => {
-    ref.current?.focus();
-    document.execCommand(increase ? 'indent' : 'outdent', false, null);
-    onChange(ref.current?.innerHTML || '');
+    if (!ref.current) return;
+    ref.current.focus();
+
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return;
+
+    // Vérifier si le curseur est dans un élément de liste
+    let checkNode = sel.getRangeAt(0).commonAncestorContainer;
+    if (checkNode.nodeType === Node.TEXT_NODE) checkNode = checkNode.parentNode;
+    let inList = false;
+    let walker = checkNode;
+    while (walker && walker !== ref.current) {
+      const tag = walker.tagName?.toUpperCase();
+      if (tag === 'LI' || tag === 'UL' || tag === 'OL') { inList = true; break; }
+      walker = walker.parentNode;
+    }
+
+    if (inList) {
+      document.execCommand(increase ? 'indent' : 'outdent', false, null);
+      onChange(ref.current.innerHTML || '');
+      return;
+    }
+
+    // Hors liste : trouver l'élément de bloc direct enfant du contenteditable
+    let blockNode = checkNode;
+    while (blockNode && blockNode !== ref.current && blockNode.parentNode !== ref.current) {
+      blockNode = blockNode.parentNode;
+    }
+
+    if (!blockNode || blockNode === ref.current) {
+      document.execCommand(increase ? 'indent' : 'outdent', false, null);
+      onChange(ref.current.innerHTML || '');
+      return;
+    }
+
+    const STEP = 2; // em par niveau
+    const current = parseFloat(blockNode.style.marginLeft) || 0;
+    if (increase) {
+      blockNode.style.marginLeft = (current + STEP) + 'em';
+    } else {
+      const next = Math.max(0, current - STEP);
+      blockNode.style.marginLeft = next === 0 ? '' : next + 'em';
+    }
+
+    onChange(ref.current.innerHTML || '');
   }, [onChange]);
 
   // ── Gestion du clavier ────────────────────────────────────────────────
@@ -352,6 +422,14 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
           title="Souligner (Ctrl+U)"
         >
           U
+        </button>
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); applyFormat('insertUnorderedList'); }}
+          style={{ ...toolbarBtn, fontSize: 14 }}
+          title="Liste à puces (toggle)"
+        >
+          ≡
         </button>
         <button
           type="button"

@@ -62,17 +62,40 @@ export function PdfExportScreen({ project, data, onBack }) {
 
     const doExport = async () => {
       // Attendre que React ait rendu l'entryView dans le conteneur caché
-      await new Promise(r => setTimeout(r, 450));
+      await new Promise(r => setTimeout(r, 200));
       if (cancelled || !renderRef.current) return;
 
       const entry = entries[exportQueue[exportingIdx]];
 
       try {
+        // Pré-charger les images en data URL pour éviter les problèmes CORS avec html2canvas
+        const imgEls = Array.from(renderRef.current.querySelectorAll('img'));
+        await Promise.all(imgEls.map(async img => {
+          if (!img.src || img.src.startsWith('data:')) return;
+          try {
+            const resp = await fetch(img.src);
+            const blob = await resp.blob();
+            const dataUrl = await new Promise(resolve => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            });
+            img.src = dataUrl;
+            await new Promise(resolve => {
+              if (img.complete && img.naturalWidth > 0) resolve();
+              else { img.onload = resolve; img.onerror = resolve; }
+            });
+          } catch (e) {
+            console.warn('Image non chargeable pour le PDF :', img.src, e);
+          }
+        }));
+
+        if (cancelled || !renderRef.current) return;
+
         const canvas = await html2canvas(renderRef.current, {
           backgroundColor: '#1a1915',
           scale: 1.5,
           useCORS: true,
-          allowTaint: true,
           logging: false,
           imageTimeout: 8000,
         });
@@ -82,45 +105,77 @@ export function PdfExportScreen({ project, data, onBack }) {
         const ptPerPx = A4W / canvas.width; // points per canvas pixel
         const pxPerPage = Math.round(A4H / ptPerPx); // canvas pixels fitting one PDF page
 
-        // Pixel-data for background-row detection (smart page breaks)
-        const ctx2d = canvas.getContext('2d');
-        const pixelData = ctx2d.getImageData(0, 0, canvas.width, canvas.height).data;
         const BG = [26, 25, 21]; // #1a1915
         const TOL = 20;
 
+        // Pixel-data pour la détection des lignes de fond (découpe intelligente)
+        let pixelData = null;
+        try {
+          pixelData = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+        } catch (e) {
+          // Canvas tainted (image CORS) — découpe intelligente désactivée
+        }
+
+        // Découpe intelligente : trouver la ligne la plus proche de nominalY
+        // qui soit à ≥90% fond (évite de couper en plein texte).
         const findSafeCut = (nominalY) => {
+          if (!pixelData) return nominalY;
           const limit = Math.max(0, nominalY - 300);
+          const step = 4; // échantillonnage (1 pixel sur 4)
           for (let y = Math.min(nominalY, canvas.height - 1); y > limit; y--) {
-            let isBg = true;
-            for (let x = 0; x < canvas.width; x++) {
+            let bgCount = 0;
+            let total = 0;
+            for (let x = 0; x < canvas.width; x += step) {
+              total++;
+              const i = (y * canvas.width + x) * 4;
+              if (
+                Math.abs(pixelData[i]   - BG[0]) <= TOL &&
+                Math.abs(pixelData[i+1] - BG[1]) <= TOL &&
+                Math.abs(pixelData[i+2] - BG[2]) <= TOL
+              ) bgCount++;
+            }
+            if (bgCount / total >= 0.9) return y;
+          }
+          return nominalY;
+        };
+
+        // Trouver le bas réel du contenu (ignorer l'espace vide de padding en bas)
+        let contentBottom = canvas.height;
+        if (pixelData) {
+          for (let y = canvas.height - 1; y >= 0; y--) {
+            let hasContent = false;
+            for (let x = 0; x < canvas.width; x += 4) {
               const i = (y * canvas.width + x) * 4;
               if (
                 Math.abs(pixelData[i]   - BG[0]) > TOL ||
                 Math.abs(pixelData[i+1] - BG[1]) > TOL ||
                 Math.abs(pixelData[i+2] - BG[2]) > TOL
-              ) { isBg = false; break; }
+              ) { hasContent = true; break; }
             }
-            if (isBg) return y;
+            if (hasContent) {
+              contentBottom = Math.min(y + 20, canvas.height); // +20px marge sous le contenu
+              break;
+            }
           }
-          return nominalY; // fallback: no bg row found, cut anyway
-        };
+        }
 
-        // Build page cut points
+        // Construire les points de découpe (en pixels canvas)
         const cuts = [0];
         let nextNominal = pxPerPage;
-        while (nextNominal < canvas.height) {
+        while (nextNominal < contentBottom) {
           const safe = findSafeCut(nextNominal);
           cuts.push(safe);
           nextNominal = safe + pxPerPage;
         }
-        cuts.push(canvas.height);
+        // Ajouter le bas du contenu (pas canvas.height, pour éviter la page vide)
+        if (cuts[cuts.length - 1] < contentBottom) cuts.push(contentBottom);
 
         // Build PDF — one cropped slice per page
         const pdf = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
         pdf.setFillColor(26, 25, 21); // #1a1915 — fond de l'app
         for (let i = 0; i < cuts.length - 1; i++) {
           if (i > 0) pdf.addPage();
-          // Remplir toute la page avec la couleur de fond (évite l'espace blanc en bas)
+          // Remplir toute la page avec la couleur de fond (espace libre en bas de dernière page)
           pdf.rect(0, 0, A4W, A4H, 'F');
           const y0 = cuts[i];
           const y1 = cuts[i + 1];
