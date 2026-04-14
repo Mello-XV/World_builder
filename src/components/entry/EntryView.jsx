@@ -212,16 +212,15 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
           })}
         </div>
 
-        {/* ── Colonne latérale (droite / bas mobile) ── */}
+        {/* ── Colonne latérale (droite sur desktop / première sur mobile) ── */}
         <div style={isMobile
-          ? { width: '100%' }
+          ? { width: '100%', order: -1 }
           : { flex: '0 0 280px', width: 280 }
         }>
           {/* Photo */}
           <div
-            style={isMobile ? {
+            style={{
               width: '100%',
-              maxHeight: 220,
               background: T.bgI,
               border: `1px solid ${T.bd}`,
               borderRadius: 6,
@@ -230,30 +229,20 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-            } : {
-              width: '100%',
-              aspectRatio: '3/4',
-              background: T.bgI,
-              border: `1px solid ${T.bd}`,
-              borderRadius: 6,
-              marginBottom: 12,
-              overflow: 'hidden',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              ...(isMobile ? {} : { aspectRatio: '3/4' }),
             }}
           >
             {entry.photo ? (
               <img
                 src={entry.photo}
                 style={isMobile
-                  ? { width: '100%', height: 220, objectFit: 'cover' }
+                  ? { width: '100%', height: 'auto', display: 'block' }
                   : { width: '100%', height: '100%', objectFit: 'cover' }
                 }
                 alt={entry.name}
               />
             ) : (
-              <span style={{ fontSize: 48, opacity: 0.2 }}>{cat.icon}</span>
+              <span style={{ fontSize: 48, opacity: 0.2, padding: 20 }}>{cat.icon}</span>
             )}
           </div>
 
