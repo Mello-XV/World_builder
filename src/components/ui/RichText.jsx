@@ -32,9 +32,10 @@ const SAFE_TAGS = new Set(['b', 'strong', 'i', 'em', 'u', 'br', 'table', 'thead'
 
 // ── Tableau redimensionnable ──────────────────────────────────────────────
 
-function ResizableTable({ headers, rows }) {
-  // colPcts : largeurs en pourcentage (somme = 100). null = distribution auto égale.
-  const [colPcts, setColPcts] = useState(null);
+function ResizableTable({ headers, rows, initialColPcts }) {
+  // colPcts : largeurs en pourcentage (somme = 100).
+  // Initialisé depuis les largeurs sauvegardées (colgroup) si disponibles.
+  const [colPcts, setColPcts] = useState(initialColPcts || null);
   const tableRef = useRef(null);
   const dragRef = useRef(null);
 
@@ -245,6 +246,12 @@ function domToReact(node, entries, onNav, key) {
       return <u key={key}>{children}</u>;
 
     case 'table': {
+      // Lire les largeurs de colonnes depuis le <colgroup> (sauvegardées en mode édition)
+      const colEls = Array.from(node.querySelectorAll('colgroup col'));
+      const initialColPcts = colEls.length > 0
+        ? colEls.map(col => parseFloat(col.style?.width) || 0).filter(v => v > 0)
+        : null;
+
       const trs = Array.from(node.querySelectorAll('tr'));
       let headers = null;
       const dataRows = [];
@@ -265,7 +272,14 @@ function domToReact(node, entries, onNav, key) {
         }
       });
 
-      return <ResizableTable key={key} headers={headers} rows={dataRows} />;
+      return (
+        <ResizableTable
+          key={key}
+          headers={headers}
+          rows={dataRows}
+          initialColPcts={initialColPcts?.length ? initialColPcts : null}
+        />
+      );
     }
 
     case 'thead':
