@@ -86,6 +86,7 @@ function tsvToHtmlTable(tsv) {
 
 export function MentionField({ value, onChange, entries, placeholder, multiline, style: xs }) {
   const [mention, setMention] = useState({ active: false, query: '', charCount: 0 });
+  const [mentionPos, setMentionPos] = useState({ top: 0, left: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [tablePicker, setTablePicker] = useState(null); // null | { rows, cols }
   const ref = useRef(null);
@@ -226,6 +227,18 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     if (atIndex >= 0 && (atIndex === 0 || ' \n'.includes(before[atIndex - 1]))) {
       const query = before.slice(atIndex + 1);
       if (!query.includes('\n') && query.length < 30) {
+        // Calculer la position du curseur pour placer le dropdown
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount && ref.current) {
+          const range = sel.getRangeAt(0).cloneRange();
+          range.collapse(true);
+          const cursorRect = range.getBoundingClientRect();
+          const containerRect = ref.current.parentElement.getBoundingClientRect();
+          setMentionPos({
+            top: cursorRect.bottom - containerRect.top + 4,
+            left: Math.max(0, cursorRect.left - containerRect.left),
+          });
+        }
         setMention({ active: true, query, charCount: query.length + 1 }); // +1 pour le @
         return;
       }
@@ -567,13 +580,13 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
         <div
           style={{
             position: 'absolute',
-            left: 0,
-            right: 0,
-            top: '100%',
+            left: mentionPos.left,
+            top: mentionPos.top,
             zIndex: 100,
             background: T.bgC,
             border: `1px solid ${T.bd}`,
             borderRadius: 6,
+            width: 280,
             maxHeight: 240,
             overflowY: 'auto',
             boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
