@@ -95,7 +95,7 @@ export function ProjectsScreen({
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <div style={{ fontSize: 48, marginBottom: 8 }}>🌍</div>
         <h1 style={{ fontSize: 28, fontWeight: 700, color: T.ac, letterSpacing: 2, textTransform: 'uppercase' }}>
-          World Builder
+          Worldforge
         </h1>
         <p style={{ color: T.mu, fontSize: 15, marginTop: 8 }}>Wiki de World-Building</p>
       </div>

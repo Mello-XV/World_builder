@@ -242,7 +242,7 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
       </div>
 
       {/* ── Zone A : Informations générales (drag & drop) ── */}
-      {!isRecit && orderedGeneralFields.length > 0 && (
+      {orderedGeneralFields.length > 0 && (
         <div style={{ ...sCard, cursor: 'default', marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: T.dm, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
             Informations générales — {cat.label}

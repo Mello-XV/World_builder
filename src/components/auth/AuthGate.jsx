@@ -170,7 +170,7 @@ export function AuthGate({ children }) {
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 48, marginBottom: 8 }}>🌍</div>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: T.ac, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 }}>
-            World Builder
+            Worldforge
           </h1>
           <p style={{ color: T.mu, fontSize: 14 }}>Wiki de World-Building</p>
         </div>

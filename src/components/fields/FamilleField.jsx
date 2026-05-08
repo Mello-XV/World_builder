@@ -149,23 +149,23 @@ export function FamilleView({ value, entries, onNav }) {
         <div
           key={i}
           style={{
-            display: 'flex',
-            gap: 8,
             padding: '6px 0',
             borderBottom: `1px solid ${T.bd}22`,
-            alignItems: 'baseline',
-            flexWrap: 'wrap',
           }}
         >
-          <span style={{ color: T.ac, fontWeight: 700, fontSize: 13, minWidth: 130 }}>
-            {member.type || '—'}
-          </span>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{member.name || '—'}</span>
-          {member.description && (
-            <span style={{ color: T.mu, fontSize: 13, flex: 1 }}>
-              {' — '}
-              <RichText text={member.description} entries={entries} onNav={onNav} />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+            <span style={{ color: T.ac, fontWeight: 700, fontSize: 13, minWidth: 130, flexShrink: 0 }}>
+              {member.type || '—'}
             </span>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{member.name || '—'}</span>
+            {member.description && (
+              <span style={{ color: T.mu, fontSize: 13 }}>{' —'}</span>
+            )}
+          </div>
+          {member.description && (
+            <div style={{ color: T.mu, fontSize: 13, marginTop: 2 }}>
+              <RichText text={member.description} entries={entries} onNav={onNav} />
+            </div>
           )}
         </div>
       ))}
