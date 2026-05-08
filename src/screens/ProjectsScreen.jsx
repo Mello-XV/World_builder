@@ -85,7 +85,7 @@ export function ProjectsScreen({
       {onProfile && (
         <button
           onClick={onProfile}
-          style={{ ...sBs, position: 'fixed', top: 20, right: 20, color: T.ac, borderColor: T.ac + '44', fontWeight: 600 }}
+          style={{ ...sBs, position: 'fixed', top: 'calc(20px + env(safe-area-inset-top, 0px))', right: 20, color: T.ac, borderColor: T.ac + '44', fontWeight: 600 }}
         >
           {userProfile?.displayName || 'Profil'}
         </button>
