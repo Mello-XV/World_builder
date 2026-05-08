@@ -61,6 +61,7 @@ function AppContent() {
   // ── Ouvrir un projet dont on est propriétaire ─────────────────────────
 
   const handleProjectOpen = async (project, preloadedData) => {
+    window.scrollTo(0, 0);
     setIsReadOnly(false);
     setProjectOwnerUid(currentUser?.uid || null);
     setCurrentProject(project);
@@ -76,6 +77,7 @@ function AppContent() {
   // ── Ouvrir un projet suivi (lecture seule) ────────────────────────────
 
   const handleFollowedProjectOpen = async (ownerUid, projectId, projectName) => {
+    window.scrollTo(0, 0);
     setIsReadOnly(true);
     setProjectOwnerUid(ownerUid);
     setCurrentProject({ id: projectId, name: projectName });
@@ -85,6 +87,7 @@ function AppContent() {
   };
 
   const handleGoProjects = () => {
+    window.scrollTo(0, 0);
     setCurrentProject(null);
     setCurrentData(null);
     setIsReadOnly(false);

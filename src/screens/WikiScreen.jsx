@@ -67,6 +67,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
   const flash = msg => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
   const nav = useCallback(id => {
+    window.scrollTo(0, 0);
     setCurId(id); setView('entry'); setMode('visual');
     setSearchQuery('');
   }, []);
@@ -96,6 +97,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
     delete updated[delEntry.id];
     setData({ ...data, entries: updated });
     setDelEntry(null);
+    window.scrollTo(0, 0);
     setCurCat(entryCategory); setListSearch(''); setView('list');
     flash('Supprimée');
   };
@@ -115,7 +117,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       const now = Date.now();
       setData({ entries: { ...data.entries, [id]: { id, category: curCat, ...upd, createdAt: now, updatedAt: now } }, nextId: id + 1 });
       flash('Créée');
-      setTimeout(() => { setCurId(id); setView('entry'); setMode('visual'); }, 50);
+      setTimeout(() => { window.scrollTo(0, 0); setCurId(id); setView('entry'); setMode('visual'); }, 50);
     } catch { flash('Erreur'); }
   };
 
@@ -150,8 +152,8 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       {view === 'dashboard' && (
         <DashboardScreen
           data={data}
-          onOpenCategory={key => { setCurCat(key); setListSearch(''); setView('list'); }}
-          onNewEntry={isReadOnly ? null : key => { setCurCat(key); setView('new'); }}
+          onOpenCategory={key => { window.scrollTo(0, 0); setCurCat(key); setListSearch(''); setView('list'); }}
+          onNewEntry={isReadOnly ? null : key => { window.scrollTo(0, 0); setCurCat(key); setView('new'); }}
           onNav={nav}
         />
       )}
@@ -174,10 +176,10 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       {view === 'entry' && curEntry && (
         <>
           <div style={{ padding: '20px 0 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button style={{ ...sBtn, padding: '6px 10px' }} onClick={() => setView('dashboard')}>←</button>
+            <button style={{ ...sBtn, padding: '6px 10px' }} onClick={() => { window.scrollTo(0, 0); setView('dashboard'); }}>←</button>
             <button
               style={{ ...sBtn, padding: '6px 10px' }}
-              onClick={() => { setCurCat(curEntry.category); setView('list'); }}
+              onClick={() => { window.scrollTo(0, 0); setCurCat(curEntry.category); setView('list'); }}
             >
               {CATEGORIES[curEntry.category]?.icon} {CATEGORIES[curEntry.category]?.label}
             </button>
