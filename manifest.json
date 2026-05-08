@@ -1,0 +1,17 @@
+{
+  "name": "Worldforge",
+  "short_name": "Worldforge",
+  "description": "Wiki de World-Building",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d0d0b",
+  "theme_color": "#0d0d0b",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
