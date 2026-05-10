@@ -83,6 +83,7 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
   const [fields, setFields] = useState({ ...entry.fields });
   const [customSections, setCustomSections] = useState(entry.customSections || []);
   const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [sectionTitleError, setSectionTitleError] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
 
   // ── Clés de base par zone ─────────────────────────────────────────────
@@ -160,7 +161,11 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
   // ── Sections personnalisées ───────────────────────────────────────────
 
   const addCustomSection = () => {
-    if (!newSectionTitle.trim()) return;
+    if (!newSectionTitle.trim()) {
+      setSectionTitleError(true);
+      setTimeout(() => setSectionTitleError(false), 1200);
+      return;
+    }
     const newSection = { id: Date.now().toString(), title: newSectionTitle.trim(), content: '' };
     setCustomSections(prev => [...prev, newSection]);
     setContentOrder(prev => [...prev, newSection.id]);
@@ -317,10 +322,10 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
         {/* Ajouter une section personnalisée */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
           <input
-            style={{ ...sInp, flex: 1, fontSize: 13 }}
+            style={{ ...sInp, flex: 1, fontSize: 13, borderColor: sectionTitleError ? '#9b4d4d' : undefined }}
             value={newSectionTitle}
-            onChange={ev => setNewSectionTitle(ev.target.value)}
-            placeholder="Titre nouvelle section…"
+            onChange={ev => { setNewSectionTitle(ev.target.value); if (sectionTitleError) setSectionTitleError(false); }}
+            placeholder="Titre de la section (obligatoire)…"
             onKeyDown={ev => { if (ev.key === 'Enter') addCustomSection(); }}
           />
           <button onClick={addCustomSection} style={{ ...sBs, color: T.ac, borderColor: T.ac + '44' }}>

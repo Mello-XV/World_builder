@@ -487,6 +487,8 @@ export const CATEGORIES = {
       { key: 'nation', label: 'Nation', type: 'searchNation', group: 'general' },
       { key: 'population', label: 'Population', type: 'text', group: 'general' },
       { key: 'dirigeant', label: 'Dirigeant', type: 'text', group: 'general' },
+      { key: 'fonctionLieu', label: 'Fonction', type: 'text', group: 'general' },
+      { key: 'surnomLieu', label: 'Surnom', type: 'text', group: 'general' },
       { key: 'histoire', label: 'Histoire', type: 'textarea' },
       { key: 'pointsInteret', label: "Points d'intérêt", type: 'textarea' },
       { key: 'batimentsNotables', label: 'Bâtiments notables', type: 'textarea' },
