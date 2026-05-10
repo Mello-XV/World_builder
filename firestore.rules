@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Statuts utilisateurs : l'utilisateur lit le sien, l'admin gère tout
+    match /userStatus/{uid} {
+      allow read: if request.auth != null && (
+        request.auth.uid == uid ||
+        request.auth.token.email == 'gregoiremorval@gmail.com'
+      );
+      allow write: if request.auth != null && (
+        request.auth.uid == uid ||
+        request.auth.token.email == 'gregoiremorval@gmail.com'
+      );
+    }
+
+    // Profils publics : lisibles par tous les utilisateurs connectés (pour afficher les pseudos)
+    match /userProfiles/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Compteur global (pseudo auto-généré)
+    match /appConfig/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Données propres à chaque utilisateur
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+
+      match /projects/{projectId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /projectData/{projectId} {
+        // Propriétaire
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+        // Followers approuvés peuvent lire
+        allow read: if request.auth != null &&
+          request.auth.uid in get(/databases/$(database)/documents/users/$(userId)/projects/$(projectId)).data.approvedFollowers;
+      }
+
+      match /following/{projectId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Codes de partage : tout utilisateur connecté peut lire (pour rejoindre via un code)
+    match /shareCodes/{code} {
+      allow read: if request.auth != null;
+      // Écriture réservée au propriétaire (la logique app s'en charge)
+      allow write: if request.auth != null;
+    }
+
+    // Demandes de suivi
+    match /followRequests/{requestId} {
+      // Lecture : l'expéditeur ou le destinataire
+      allow read: if request.auth != null && (
+        resource.data.fromUid == request.auth.uid ||
+        resource.data.toUid == request.auth.uid
+      );
+      // Création : uniquement par l'expéditeur lui-même
+      allow create: if request.auth != null &&
+        request.resource.data.fromUid == request.auth.uid;
+      // Mise à jour (approbation/refus) : uniquement par le propriétaire du projet
+      allow update: if request.auth != null &&
+        resource.data.toUid == request.auth.uid;
+    }
+
+    // Commentaires
+    match /comments/{commentId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null &&
+        request.resource.data.authorUid == request.auth.uid;
+      allow update: if false;
+      allow delete: if request.auth != null &&
+        resource.data.authorUid == request.auth.uid;
+    }
+  }
+}
