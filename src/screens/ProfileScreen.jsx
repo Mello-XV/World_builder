@@ -187,7 +187,7 @@ export function ProfileScreen({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 500, background: T.bg, overflowY: 'auto', fontFamily: "'Cormorant Garamond', serif" }}>
-      <div style={{ maxWidth: 640, margin: '0 auto', padding: '30px 20px 60px' }}>
+      <div style={{ maxWidth: 640, margin: '0 auto', paddingTop: 'calc(30px + env(safe-area-inset-top, 0px))', paddingRight: 20, paddingBottom: 60, paddingLeft: 20 }}>
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
