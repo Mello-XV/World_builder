@@ -222,26 +222,28 @@ export function MentionField({ value, onChange, entries, placeholder, multiline,
     onChange(isEffectivelyEmpty(html) ? '' : html);
 
     const before = getTextBeforeCursor(ref.current);
-    const atIndex = before.lastIndexOf('@');
+    // Détecte @... en fin de texte (0-30 chars non-espace après @).
+    // Fonctionne même au milieu d'un mot ou en début de paragraphe (pas de contrainte
+    // sur le caractère précédant le @), ce qui couvre les blocs <p> où range.toString()
+    // ne produit pas de \n entre paragraphes.
+    const mentionMatch = before.match(/@([^@\s\n\r]{0,30})$/);
 
-    if (atIndex >= 0 && (atIndex === 0 || ' \n'.includes(before[atIndex - 1]))) {
-      const query = before.slice(atIndex + 1);
-      if (!query.includes('\n') && query.length < 30) {
-        // Calculer la position du curseur pour placer le dropdown
-        const sel = window.getSelection();
-        if (sel && sel.rangeCount && ref.current) {
-          const range = sel.getRangeAt(0).cloneRange();
-          range.collapse(true);
-          const cursorRect = range.getBoundingClientRect();
-          const containerRect = ref.current.parentElement.getBoundingClientRect();
-          setMentionPos({
-            top: cursorRect.bottom - containerRect.top + 4,
-            left: Math.max(0, cursorRect.left - containerRect.left),
-          });
-        }
-        setMention({ active: true, query, charCount: query.length + 1 }); // +1 pour le @
-        return;
+    if (mentionMatch) {
+      const query = mentionMatch[1];
+      // Calculer la position du curseur pour placer le dropdown
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && ref.current) {
+        const range = sel.getRangeAt(0).cloneRange();
+        range.collapse(true);
+        const cursorRect = range.getBoundingClientRect();
+        const containerRect = ref.current.parentElement.getBoundingClientRect();
+        setMentionPos({
+          top: cursorRect.bottom - containerRect.top + 4,
+          left: Math.max(0, cursorRect.left - containerRect.left),
+        });
       }
+      setMention({ active: true, query, charCount: query.length + 1 }); // +1 pour le @
+      return;
     }
     setMention({ active: false, query: '', charCount: 0 });
   }, [onChange]);

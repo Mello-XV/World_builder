@@ -12,6 +12,7 @@ import { RichText } from '../ui/RichText';
 import { renderFieldView } from '../fields/FieldRenderer';
 import { DynastyMembersView } from '../fields/DynastyMembersView';
 import { AffiliatedMembersView } from '../fields/AffiliatedMembersView';
+import { AffiliatedPlacesView } from '../fields/AffiliatedPlacesView';
 import { CommentsSection } from './CommentsSection';
 import { T, sTg } from '../../styles/theme';
 import { useIsMobile } from '../../lib/useIsMobile';
@@ -33,13 +34,33 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
 
   // Appliquer l'ordre personnalisé (generalOrder / contentOrder) si présent,
   // sinon conserver l'ordre par défaut de la catégorie.
-  const generalFields = (() => {
-    const base = cat.fields.filter(f => f.group === 'general');
+  // generalItems : champs généraux + sections générales perso, dans l'ordre sauvegardé
+  const generalItems = (() => {
+    const baseFields = cat.fields.filter(f => f.group === 'general');
+    const sections = entry.customGeneralSections || [];
     const order = entry.generalOrder;
-    if (!order) return base;
-    const sorted = order.map(k => base.find(f => f.key === k)).filter(Boolean);
-    const missing = base.filter(f => !order.includes(f.key));
-    return [...sorted, ...missing];
+    if (!order) {
+      return [
+        ...baseFields.map(f => ({ type: 'field', field: f })),
+        ...sections.map(s => ({ type: 'section', section: s })),
+      ];
+    }
+    const sorted = order
+      .map(id => {
+        const field = baseFields.find(f => f.key === id);
+        if (field) return { type: 'field', field };
+        const section = sections.find(s => s.id === id);
+        if (section) return { type: 'section', section };
+        return null;
+      })
+      .filter(Boolean);
+    const missingFields = baseFields
+      .filter(f => !order.includes(f.key))
+      .map(f => ({ type: 'field', field: f }));
+    const missingSections = sections
+      .filter(s => !order.includes(s.id))
+      .map(s => ({ type: 'section', section: s }));
+    return [...sorted, ...missingFields, ...missingSections];
   })();
 
   // contentItems : champs non-généraux + sections perso, dans l'ordre sauvegardé
@@ -247,7 +268,11 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
           </div>
 
           {/* Informations générales */}
-          {generalFields.some(f => !htmlEmpty(entry.fields?.[f.key])) && (
+          {generalItems.some(item =>
+            item.type === 'field'
+              ? !htmlEmpty(entry.fields?.[item.field.key])
+              : !htmlEmpty(item.section.content)
+          ) && (
             <div
               style={{
                 background: T.bgC,
@@ -268,16 +293,31 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
               >
                 Informations générales
               </div>
-              {generalFields.map(f => {
-                const v = entry.fields?.[f.key];
-                if (htmlEmpty(v)) return null;
+              {generalItems.map(item => {
+                if (item.type === 'field') {
+                  const f = item.field;
+                  const v = entry.fields?.[f.key];
+                  if (htmlEmpty(v)) return null;
+                  return (
+                    <div key={f.key} style={{ padding: '5px 0', borderBottom: `1px solid ${T.bd}22` }}>
+                      <div style={{ color: T.mu, fontWeight: 600, fontSize: 12, marginBottom: 2 }}>
+                        {f.label}
+                      </div>
+                      <div style={{ fontSize: 14 }}>
+                        {renderFieldView(f, entry.fields, entries, onNav)}
+                      </div>
+                    </div>
+                  );
+                }
+                const s = item.section;
+                if (htmlEmpty(s.content)) return null;
                 return (
-                  <div key={f.key} style={{ padding: '5px 0', borderBottom: `1px solid ${T.bd}22` }}>
+                  <div key={s.id} style={{ padding: '5px 0', borderBottom: `1px solid ${T.bd}22` }}>
                     <div style={{ color: T.mu, fontWeight: 600, fontSize: 12, marginBottom: 2 }}>
-                      {f.label}
+                      {s.title}
                     </div>
                     <div style={{ fontSize: 14 }}>
-                      {renderFieldView(f, entry.fields, entries, onNav)}
+                      <RichText text={s.content} entries={entries} onNav={onNav} />
                     </div>
                   </div>
                 );
@@ -347,6 +387,33 @@ export function EntryView({ entry, entries, onNav, onUpdateEntry, ownerUid, proj
                 Membres affiliés
               </div>
               <AffiliatedMembersView entryId={entry.id} entries={entries} onNav={onNav} />
+            </div>
+          )}
+
+          {/* Lieux affiliés (nations uniquement) */}
+          {entry.category === 'nation' && (
+            <div
+              style={{
+                background: T.bgC,
+                border: `1px solid ${T.bd}`,
+                borderRadius: 6,
+                padding: '12px 16px',
+                marginTop: 12,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  color: cat.color,
+                  letterSpacing: 1.5,
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                  fontWeight: 700,
+                }}
+              >
+                Lieux affiliés
+              </div>
+              <AffiliatedPlacesView entryId={entry.id} entries={entries} onNav={onNav} />
             </div>
           )}
         </div>

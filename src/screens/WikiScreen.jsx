@@ -30,6 +30,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
   const [curCat, setCurCat] = useState(null);
   const [curId, setCurId] = useState(null);
   const [mode, setMode] = useState('visual');
+  const [navHistory, setNavHistory] = useState([]); // stack pour le bouton ←
   const [listSearch, setListSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState(null);
@@ -68,9 +69,25 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
 
   const nav = useCallback(id => {
     window.scrollTo(0, 0);
+    // Mémoriser l'état courant pour pouvoir y revenir avec ←
+    setNavHistory(prev => [...prev, { view, curCat, curId }]);
     setCurId(id); setView('entry'); setMode('visual');
     setSearchQuery('');
-  }, []);
+  }, [view, curCat, curId]);
+
+  const handleBack = useCallback(() => {
+    window.scrollTo(0, 0);
+    setMode('visual');
+    if (navHistory.length > 0) {
+      const prev = navHistory[navHistory.length - 1];
+      setNavHistory(h => h.slice(0, -1));
+      setView(prev.view);
+      setCurCat(prev.curCat);
+      setCurId(prev.curId);
+    } else {
+      setView('dashboard');
+    }
+  }, [navHistory]);
 
   const searchResults = searchQuery.trim()
     ? Object.values(data.entries)
@@ -152,7 +169,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       {view === 'dashboard' && (
         <DashboardScreen
           data={data}
-          onOpenCategory={key => { window.scrollTo(0, 0); setCurCat(key); setListSearch(''); setView('list'); }}
+          onOpenCategory={key => { window.scrollTo(0, 0); setCurCat(key); setListSearch(''); setView('list'); setNavHistory([]); }}
           onNewEntry={isReadOnly ? null : key => { window.scrollTo(0, 0); setCurCat(key); setView('new'); }}
           onNav={nav}
         />
@@ -166,7 +183,7 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
           onNav={nav}
           onNew={isReadOnly ? null : () => setView('new')}
           onDelete={isReadOnly ? null : e => setDelEntry(e)}
-          onBack={() => setView('dashboard')}
+          onBack={() => { setView('dashboard'); setNavHistory([]); }}
           search={listSearch}
           onSearch={setListSearch}
         />
@@ -176,10 +193,10 @@ export function WikiScreen({ project: initialProject, data: initialData, onGoPro
       {view === 'entry' && curEntry && (
         <>
           <div style={{ padding: '20px 0 14px', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <button style={{ ...sBtn, padding: '6px 10px' }} onClick={() => { window.scrollTo(0, 0); setView('dashboard'); }}>←</button>
+            <button style={{ ...sBtn, padding: '6px 10px' }} onClick={handleBack}>←</button>
             <button
               style={{ ...sBtn, padding: '6px 10px' }}
-              onClick={() => { window.scrollTo(0, 0); setCurCat(curEntry.category); setView('list'); }}
+              onClick={() => { window.scrollTo(0, 0); setCurCat(curEntry.category); setView('list'); setNavHistory([]); }}
             >
               {CATEGORIES[curEntry.category]?.icon} {CATEGORIES[curEntry.category]?.label}
             </button>

@@ -84,6 +84,9 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
   const [customSections, setCustomSections] = useState(entry.customSections || []);
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [sectionTitleError, setSectionTitleError] = useState(false);
+  const [customGeneralSections, setCustomGeneralSections] = useState(entry.customGeneralSections || []);
+  const [newGeneralSectionTitle, setNewGeneralSectionTitle] = useState('');
+  const [generalSectionTitleError, setGeneralSectionTitleError] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
 
   // ── Clés de base par zone ─────────────────────────────────────────────
@@ -94,9 +97,11 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
   // ── États d'ordre (initialisés depuis la fiche, complétés si manquants) ─
 
   const [generalOrder, setGeneralOrder] = useState(() => {
+    const generalSectionIds = (entry.customGeneralSections || []).map(s => s.id);
+    const allGeneralIds = [...generalBaseKeys, ...generalSectionIds];
     const saved = entry.generalOrder ?? [];
-    const filtered = saved.filter(k => generalBaseKeys.includes(k));
-    const missing = generalBaseKeys.filter(k => !filtered.includes(k));
+    const filtered = saved.filter(id => allGeneralIds.includes(id));
+    const missing = allGeneralIds.filter(id => !filtered.includes(id));
     return [...filtered, ...missing];
   });
 
@@ -111,8 +116,14 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
 
   // ── Listes ordonnées pour le rendu ────────────────────────────────────
 
-  const orderedGeneralFields = generalOrder
-    .map(k => cat.fields.find(f => f.key === k))
+  const orderedGeneralItems = generalOrder
+    .map(id => {
+      const field = cat.fields.find(f => f.key === id);
+      if (field) return { type: 'field', id, field };
+      const section = customGeneralSections.find(s => s.id === id);
+      if (section) return { type: 'section', id, section };
+      return null;
+    })
     .filter(Boolean);
 
   const orderedContentItems = contentOrder
@@ -158,7 +169,26 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
     }
   };
 
-  // ── Sections personnalisées ───────────────────────────────────────────
+  // ── Sections générales personnalisées ────────────────────────────────
+
+  const addGeneralSection = () => {
+    if (!newGeneralSectionTitle.trim()) {
+      setGeneralSectionTitleError(true);
+      setTimeout(() => setGeneralSectionTitleError(false), 1200);
+      return;
+    }
+    const newSection = { id: 'g-' + Date.now().toString(), title: newGeneralSectionTitle.trim(), content: '' };
+    setCustomGeneralSections(prev => [...prev, newSection]);
+    setGeneralOrder(prev => [...prev, newSection.id]);
+    setNewGeneralSectionTitle('');
+  };
+
+  const deleteGeneralSection = useCallback(sectionId => {
+    setCustomGeneralSections(prev => prev.filter(s => s.id !== sectionId));
+    setGeneralOrder(prev => prev.filter(id => id !== sectionId));
+  }, []);
+
+  // ── Sections de contenu personnalisées ───────────────────────────────
 
   const addCustomSection = () => {
     if (!newSectionTitle.trim()) {
@@ -188,6 +218,7 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
       photo,
       fields,
       customSections,
+      customGeneralSections,
       memberRoles: entry.memberRoles || {},
       generalOrder,
       contentOrder,
@@ -247,21 +278,68 @@ export function EntryEditor({ entry, category, entries, onSave, onCancel, flash 
       </div>
 
       {/* ── Zone A : Informations générales (drag & drop) ── */}
-      {orderedGeneralFields.length > 0 && (
+      {!isRecit && (
         <div style={{ ...sCard, cursor: 'default', marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: T.dm, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 14 }}>
             Informations générales — {cat.label}
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEndGeneral}>
             <SortableContext items={generalOrder} strategy={verticalListSortingStrategy}>
-              {orderedGeneralFields.map(f => (
-                <SortableItem key={f.key} id={f.key}>
-                  <label style={{ ...sLbl, color: cat.color }}>{f.label}</label>
-                  {renderFieldEdit(f, fields, setFields, entries, name)}
-                </SortableItem>
-              ))}
+              {orderedGeneralItems.map(item => {
+                if (item.type === 'field') {
+                  const f = item.field;
+                  return (
+                    <SortableItem key={f.key} id={f.key}>
+                      <label style={{ ...sLbl, color: cat.color }}>{f.label}</label>
+                      {renderFieldEdit(f, fields, setFields, entries, name)}
+                    </SortableItem>
+                  );
+                }
+                const s = item.section;
+                const idx = customGeneralSections.findIndex(cs => cs.id === s.id);
+                return (
+                  <SortableItem key={s.id} id={s.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <label style={{ ...sLbl, color: T.ac, marginBottom: 0, flex: 1 }}>{s.title}</label>
+                      <button
+                        onClick={() => deleteGeneralSection(s.id)}
+                        style={{ ...sBs, color: '#9b4d4d', padding: '2px 8px' }}
+                      >
+                        🗑
+                      </button>
+                    </div>
+                    <MentionField
+                      value={s.content}
+                      onChange={v => {
+                        setCustomGeneralSections(prev => {
+                          const updated = [...prev];
+                          updated[idx] = { ...updated[idx], content: v };
+                          return updated;
+                        });
+                      }}
+                      entries={entries}
+                      placeholder="Contenu…"
+                      multiline
+                    />
+                  </SortableItem>
+                );
+              })}
             </SortableContext>
           </DndContext>
+
+          {/* Ajouter une section générale personnalisée */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+            <input
+              style={{ ...sInp, flex: 1, fontSize: 13, borderColor: generalSectionTitleError ? '#9b4d4d' : undefined }}
+              value={newGeneralSectionTitle}
+              onChange={ev => { setNewGeneralSectionTitle(ev.target.value); if (generalSectionTitleError) setGeneralSectionTitleError(false); }}
+              placeholder="Titre de la section (obligatoire)…"
+              onKeyDown={ev => { if (ev.key === 'Enter') addGeneralSection(); }}
+            />
+            <button onClick={addGeneralSection} style={{ ...sBs, color: T.ac, borderColor: T.ac + '44' }}>
+              + Section
+            </button>
+          </div>
         </div>
       )}
 
