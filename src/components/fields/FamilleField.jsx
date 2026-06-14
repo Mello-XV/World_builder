@@ -14,7 +14,12 @@ import { RichText } from '../ui/RichText';
 
 export function FamilleEditor({ value, onChange, entries }) {
   const members = Array.isArray(value) ? value : [];
-  const [familyTypes, setFamilyTypes] = useState([...FAMILY_TYPES_BASE]);
+  const [familyTypes, setFamilyTypes] = useState(() => {
+    const existingCustom = members
+      .map(m => m.type)
+      .filter(t => t && !FAMILY_TYPES_BASE.includes(t));
+    return [...FAMILY_TYPES_BASE, ...new Set(existingCustom)];
+  });
   // editingCustom : { [memberIndex]: currentInputValue }
   const [editingCustom, setEditingCustom] = useState({});
 
